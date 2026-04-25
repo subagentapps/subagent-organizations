@@ -1,0 +1,40 @@
+{
+  "name": "@subagentapps/subagent-organizations",
+  "version": "0.0.1",
+  "description": "Typed manifest of zsh + Ghostty + Claude Code packages. TypeScript primitives with discriminated-union inheritance.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./core": "./dist/core/index.js",
+    "./primitives": "./dist/primitives/index.js",
+    "./primitives/*": "./dist/primitives/*.js",
+    "./directives": "./dist/directives/index.js",
+    "./manifest": "./dist/manifest/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "bun test",
+    "render": "bun run scripts/render.ts",
+    "verify": "bun run scripts/verify.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/subagentapps/subagent-organizations.git"
+  },
+  "keywords": [
+    "zsh",
+    "ghostty",
+    "claude-code",
+    "manifest",
+    "typescript"
+  ],
+  "publishConfig": {
+    "access": "restricted"
+  }
+}
