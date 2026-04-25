@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/claude-plugins-manifest.json",
+  "version": "0.0.1",
+  "plugins": [
+    {
+      "id": "claudekit",
+      "source": "npm:claudekit",
+      "version": "^0.9.5",
+      "agents": [
+        "code-review-expert",
+        "typescript-expert",
+        "refactoring-expert",
+        "documentation-expert"
+      ]
+    },
+    {
+      "id": "superpowers",
+      "source": "marketplace:superpowers-marketplace",
+      "version": "main",
+      "skills": ["all"]
+    }
+  ]
+}
