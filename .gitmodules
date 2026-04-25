@@ -1,0 +1,45 @@
+# READ-ONLY VENDORED REFERENCES
+# ==============================
+# Each entry below is pinned to the SHA committed alongside this file.
+#
+# `update = none` means `git submodule update` will NOT change the pinned SHA.
+# If you want to refresh a vendored repo, do it explicitly:
+#   git -C vendor/anthropic/<name> fetch origin
+#   git -C vendor/anthropic/<name> checkout <new-sha>
+#   git add vendor/anthropic/<name>
+#   git commit -m "chore(vendor): bump <name> to <new-sha>"
+#
+# This file itself is also chmod 444 (filesystem-level read-only) once committed.
+# Use `chmod 644 .gitmodules` if you need to add/remove an entry.
+#
+# The fetch URL is HTTPS-only; we do not have push to anthropics/* or modelcontextprotocol/*.
+
+[submodule "vendor/anthropic/anthropic-cli"]
+	path = vendor/anthropic/anthropic-cli
+	url = https://github.com/anthropics/anthropic-cli.git
+	update = none
+	shallow = true
+
+[submodule "vendor/anthropic/anthropic-sdk-typescript"]
+	path = vendor/anthropic/anthropic-sdk-typescript
+	url = https://github.com/anthropics/anthropic-sdk-typescript.git
+	update = none
+	shallow = true
+
+[submodule "vendor/anthropic/claude-agent-sdk-typescript"]
+	path = vendor/anthropic/claude-agent-sdk-typescript
+	url = https://github.com/anthropics/claude-agent-sdk-typescript.git
+	update = none
+	shallow = true
+
+[submodule "vendor/anthropic/mcp-typescript-sdk"]
+	path = vendor/anthropic/mcp-typescript-sdk
+	url = https://github.com/modelcontextprotocol/typescript-sdk.git
+	update = none
+	shallow = true
+
+[submodule "vendor/anthropic/mcp-ext-apps"]
+	path = vendor/anthropic/mcp-ext-apps
+	url = https://github.com/modelcontextprotocol/ext-apps.git
+	update = none
+	shallow = true

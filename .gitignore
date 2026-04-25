@@ -7,4 +7,5 @@ dist/
 !.env.example
 coverage/
 .turbo/
-vendor/
+# vendor/ — REMOVED. The vendor/anthropic/ tree is now tracked as git submodules.
+# Add per-path entries here if you create transient vendor dirs that shouldn't be tracked.
