@@ -1,8 +1,11 @@
-# `stainless-app[bot]` and the anthropic-cli release pipeline
+# Bots in the anthropic-cli release pipeline
 
-Date: 2026-04-25
-Source: [`anthropics/anthropic-cli@899e30c`](https://github.com/anthropics/anthropic-cli/tree/899e30c)
-specifically the `.github/workflows/` directory and the last 25 commits on `main`.
+Date: 2026-04-25 (amended same-day to add homebrew-tap analysis)
+Sources:
+- [`anthropics/anthropic-cli@899e30c`](https://github.com/anthropics/anthropic-cli/tree/899e30c)
+  — specifically `.github/workflows/` and the last 25 commits on `main`
+- [`anthropics/homebrew-tap@67bd3fd`](https://github.com/anthropics/homebrew-tap/tree/67bd3fd)
+  — all 4 commits since repo creation 2026-01-23
 
 ## TL;DR
 
@@ -191,10 +194,84 @@ The two main upgrades inspired by anthropic-cli's pipeline that I'd suggest late
 1. Add a **`verify` job** in front of any future publish workflow (blocks tags off main's first-parent line).
 2. Pin all GitHub Action references by **SHA, not tag**.
 
+## What appears in the `homebrew-tap` repo (the *third* bot)
+
+Earlier sections covered `stainless-app[bot]` (codegen + release PRs on the source repo)
+and the custom `RELEASE_APP_*` GitHub App (token brokering for the publish job). But the
+identity that **actually shows up as the commit author on `anthropics/homebrew-tap`** is a
+*third* bot: **[`goreleaserbot`](https://github.com/goreleaserbot)** (GitHub user ID 29843943,
+`bot@goreleaser.com`).
+
+This matters because the custom `RELEASE_APP_*` App is just the **token broker** — it mints a
+short-lived token scoped to the tap repo, but `goreleaser` then uses that token to push a commit
+whose **author** it sets to `goreleaserbot`. The App identity never appears in the tap's `git log`.
+
+### Three distinct bots, one pipeline
+
+| Bot | Identity type | Where it commits | What it does |
+|---|---|---|---|
+| `stainless-app[bot]` | GitHub App (ID 378072) | `anthropics/anthropic-cli` | Codegen, version bumps, opens release PRs, CHANGELOG |
+| Custom `RELEASE_APP_*` (no public name) | Org-owned GitHub App | Mints tokens, never directly authors commits | Token brokering for tag→publish *and* tap pushes |
+| `goreleaserbot` | Plain GitHub user | `anthropics/homebrew-tap` | Cask formula updates |
+
+### The 4-commit history of `homebrew-tap` shows a security glow-up
+
+The repo is tiny — just 4 commits, no `.github/workflows/` of its own — but the pattern shifted
+mid-stream:
+
+```
+67bd3fd  PR #3  AlePouroullis (human)  Co-authored-by: goreleaserbot   "Brew cask update for ant version v1.3.2"
+03b7c5d  PR #2  AlePouroullis (human)                                  "Add CODEOWNERS requiring @anthropics/sdk approval"
+c7d7f67  PR #1  packyg       (human)   Co-authored-by: goreleaserbot   "Brew cask update for ant version v1.2.1"
+0e6080c  direct goreleaserbot                                          "Brew cask update for ant version v1.0.0"
+```
+
+1. **v1.0.0**: `goreleaserbot` pushed straight to `main`. No PR, no review.
+2. **PR #2 (Apr 23)**: a human added `CODEOWNERS` requiring `@anthropics/sdk` review. The PR
+   description is the gold:
+   > *"The L3 ruleset on this repo has require_code_owner_review enabled, but without a
+   > CODEOWNERS file that requirement has nothing to enforce and any single writer can approve."*
+3. **v1.2.1, v1.3.2**: now the bot **opens a PR** instead of pushing direct, and the human
+   merging it picks up `goreleaserbot` as `Co-authored-by:`.
+
+The control point that broke and was patched: a GitHub branch ruleset with
+`require_code_owner_review = true` does **nothing** unless a `CODEOWNERS` file exists. The bot's
+PAT/App had write access; without an effective code-owner gate it could land changes unilaterally.
+Adding `CODEOWNERS` made the rule actually bite.
+
+### Where the v1.0.0 → v1.2.1 transition happens in the publish workflow
+
+In [`anthropic-cli`'s `publish-release.yml`](https://github.com/anthropics/anthropic-cli/blob/main/.github/workflows/publish-release.yml),
+the goreleaser step has two scoped tokens:
+
+```yaml
+- name: Generate release app token (homebrew-tap)
+  uses: actions/create-github-app-token@v3
+  with:
+    app-id: ${{ secrets.RELEASE_APP_ID }}
+    private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+    owner: anthropics
+    repositories: homebrew-tap                             # ← scoped to JUST the tap
+
+- uses: goreleaser/goreleaser-action@v7
+  env:
+    HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.tap-token.outputs.token }}
+```
+
+`goreleaser`'s `brews:` config (in `.goreleaser.yml`, not shown but implied) uses
+`HOMEBREW_TAP_GITHUB_TOKEN` to push the formula update. Whether that push is a **direct commit**
+or a **PR** is controlled by goreleaser's `pull_request:` block — the v1.0.0 → v1.2.1 jump
+corresponds to flipping `pull_request: enable: true` in that config (see
+`f1f4c5a fix(goreleaser): correct pull request config` in the source repo's history).
+
 ## Glossary
 
 - **`stainless-app[bot]`** — Stainless's organization-owned GitHub App. Public profile,
   installable by anyone using their service.
+- **`goreleaserbot`** — A plain GitHub user account (not an App) that GoReleaser uses as the
+  default `git config user.name`/`email` for any commits it pushes. Authentication happens via
+  whatever token GoReleaser is given (usually `HOMEBREW_TAP_GITHUB_TOKEN`); the *identity* on the
+  resulting commit is always `goreleaserbot <bot@goreleaser.com>`.
 - **`web-flow`** — GitHub's own bot that signs merge commits made via the web UI. Co-committer
   on most human-authored PRs.
 - **`packyg`, `meorphis`, `RobertCraigie`, `AlePouroullis`, `bruce-hill`** — humans at
@@ -207,3 +284,6 @@ The two main upgrades inspired by anthropic-cli's pipeline that I'd suggest late
 - https://github.com/anthropics/anthropic-cli/blob/main/.github/workflows/create-releases.yml
 - https://github.com/anthropics/anthropic-cli/blob/main/.github/workflows/publish-release.yml
 - https://github.com/anthropics/anthropic-cli/commits/main (commit-author analysis)
+- https://github.com/anthropics/homebrew-tap (4-commit history showing the goreleaserbot pattern + CODEOWNERS hardening)
+- https://github.com/goreleaserbot (the plain user account that authors tap commits)
+- https://goreleaser.com/customization/homebrew_casks/ (`pull_request:` config that flipped between v1.0.0 and v1.2.1)
