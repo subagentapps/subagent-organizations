@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Example Feed</title>
+  <link href="https://example.invalid/feed"/>
+  <updated>2026-04-26T12:00:00Z</updated>
+  <id>urn:uuid:60a76c80-d399-11d9-b91C-0003939e0af6</id>
+
+  <entry>
+    <title>First entry</title>
+    <link href="https://example.invalid/posts/1"/>
+    <id>urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a</id>
+    <updated>2026-04-26T11:00:00Z</updated>
+    <summary>The first post.</summary>
+  </entry>
+  <entry>
+    <title>Second entry, with &amp; entity</title>
+    <link href="https://example.invalid/posts/2"/>
+    <id>urn:uuid:2225c695-cfb8-4ebb-bbbb-80da344efa6a</id>
+    <updated>2026-04-26T10:00:00Z</updated>
+    <summary><![CDATA[Body with <markup> & special chars.]]></summary>
+  </entry>
+</feed>

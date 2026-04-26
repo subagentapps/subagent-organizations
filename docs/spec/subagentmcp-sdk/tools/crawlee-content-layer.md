@@ -191,15 +191,48 @@ prose around the data and forces the LLM to re-extract it.
 
 For Atom/RSS, sitemaps, OpenAPI/Swagger XML. Less common but worth typing for completeness.
 
+**Implementation note (2026-04-26):** the original spec called out `xml2js` and
+Zod as runtime deps. We replaced both:
+
+- **XML parsing**: zero-dep — `_xml-parse.ts` is a 200-line tag walker covering
+  the documented subset (sitemaps, Atom, RSS 2.0, trivial OpenAPI). `xml2js`
+  was 1MB unpacked across 4 transitive deps; for a "TypeScript reference
+  catalog" SDK that's disproportionate to the work.
+- **Schema validation**: duck-typed — `XMLReadOptions.schema` accepts any
+  `{ parse(input): T }`. Zod's `ZodType` already exposes `.parse()`, so
+  callers can pass Zod schemas directly without us importing Zod ourselves.
+  Valibot, Yup, and hand-rolled validators also work.
+
+**Selector subset.** `_xml-parse.ts:selectXml()` handles:
+- `/root/child` — absolute, root-anchored
+- `//element` — descendant-or-self
+- `/root/*` — star matches any single element
+- `/root/child[2]` — 1-based positional predicate
+
+No attribute predicates, no axes beyond `//`, no XPath functions. If a future
+caller needs more, swap `_xml-parse.ts` for a real XPath engine; the public
+reader interface is selector-string-in / nodes-out, so the swap is local.
+
 ```ts
 // src/subagentmcp-sdk/tools/subagent-xml.ts
-import { parseString } from 'xml2js';
+import type { XmlNode } from './_xml-parse.ts';
 
-export interface XMLReadOptions {
-  /** XPath-like selector to extract a sub-tree, or full document if omitted. */
+export interface ParseableSchema<T> {
+  parse(input: unknown): T;
+}
+
+export interface XMLReadOptions extends ContentReaderOptions {
+  /** XPath-ish selector (subset documented above). Omit for full root. */
   selector?: string;
-  /** Zod schema for the extracted shape. */
-  schema?: z.ZodType;
+  /** Validation schema for the extracted shape (Zod-compatible duck-type). */
+  schema?: ParseableSchema<unknown>;
+}
+
+export interface XMLReadResult<TData = unknown> {
+  url: string;
+  node: XmlNode;          // first match (or full root if no selector)
+  nodes: XmlNode[];       // all matches when selector returns multiple
+  data: TData;            // schema.parse(node) result, else node verbatim
 }
 ```
 
