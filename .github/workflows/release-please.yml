@@ -12,7 +12,10 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      # Pinned to v4.4.1 (2026-03-30) per docs/research/knowledge-work-plugins-cli-review.md
+      # Important rule 1 (no unpinned external dependency).
+      # Bump strategy: Dependabot (separate issue) or manual SHA-bump on release.
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071  # v4.4.1
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
