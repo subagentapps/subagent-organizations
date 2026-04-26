@@ -1,0 +1,9 @@
+.field {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-field);
+  pointer-events: none;
+  /* `aria-hidden` already set on the element; this class purely styles. */
+}
