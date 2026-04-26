@@ -39,8 +39,15 @@ iteration appends to / updates this file.
                                     ✓ saved canonical /loop prompt to installs/loop-prompt.md
                                     ✓ wrote docs/research/knowledge-work-plugins-cli-survey.md
                                     branch: feat/kb-parity-and-loop-plan (PR #4)
-                                    commits: a5a4a23 (submodule + loop-prompt)
-                                             + survey commit pending
+                                    commits: a5a4a23, c8a5467
+
+[iteration 2] 18:53 PST 2026-04-25 — Phase A.2: cowork connector enums
+                                    ✓ wrote docs/research/cowork-plugin-connectors.md
+                                    ✓ documented productivity (6 categories) + product-mgmt (10)
+                                    ✓ mapped Cowork enum surface → CLI reduction (GH Projects)
+                                    ✓ proposed Connector primitive shape for subagentmcp-sdk
+                                    branch: feat/kb-parity-and-loop-plan (PR #4)
+                                    Phase A complete. Phase B next (test stubs).
 ```
 
 ## Blockers
