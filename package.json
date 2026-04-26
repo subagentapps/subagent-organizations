@@ -18,7 +18,8 @@
     "test": "bun test",
     "render": "bun run scripts/render.ts",
     "verify": "bun run scripts/verify.ts",
-    "parity-check": "bun run src/parity/check.ts"
+    "parity-check": "bun run src/parity/check.ts",
+    "kb:eval": "bun run tests/kb/contextual-retrieval.eval.ts"
   },
   "engines": {
     "node": ">=20"
