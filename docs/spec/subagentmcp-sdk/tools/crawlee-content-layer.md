@@ -286,6 +286,27 @@ Thresholds are configurable per reader via `ContentReaderOptions.parryThresholds
 - HTML scanning produces false positives on legitimate `<script>` blocks
 - Markdown is what the bloom filter hashes, so scan + hash are atomic
 
+### Implementation notes (2026-04-26)
+
+The runtime in `_parry-scan.ts` adds three behaviors not in the original spec:
+
+1. **Token-driven activation.** When `~/.config/parry/token` is missing or
+   empty, `scan()` returns `{ label: 'SAFE', score: 0, via: 'stub' }` —
+   readers stay testable offline and a fresh checkout passes `bun test`
+   without anyone touching the HuggingFace gate. Override path with the
+   `PARRY_TOKEN_PATH` env var or the `tokenPath` option.
+2. **Fail-open on transient HF errors.** A 5xx, network throw, or
+   malformed payload returns the same `via: 'stub'` SAFE verdict. The
+   alternative (failing closed) would block all reads during an HF outage.
+   Fail-open + caching the fail-open result means the reader is degraded
+   (no scan) but not broken. The bloom-cache integration in #24 will
+   record `via` so callers can audit which pages were scanned vs.
+   fallback-passed.
+3. **Threshold-bucketed cache key.** The in-memory cache (placeholder for
+   #24's bloom cache) is keyed by `${contentHash}:${suspicious}:${malicious}`.
+   A caller that switches to stricter thresholds invalidates only their
+   bucket — other callers' cached results stay valid.
+
 ### What gets cached on a BLOCK
 
 ```ts
