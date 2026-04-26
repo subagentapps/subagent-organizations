@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "description": "Eval questions for the contextual-retrieval pipeline. Each question's `expectedSubstrings` are unique-enough phrases that, if any one appears in a top-20 chunk's text, count the query as recalled. Multiple substrings = OR (any match counts). Curated 2026-04-26 from the repo's own docs (the corpus is the same set of files, so this measures recall against a fixed ground truth without needing human relevance judgments).",
+  "questions": [
+    {
+      "id": "q01",
+      "query": "what's the chunker's default chunk size",
+      "expectedSubstrings": ["800", "chunk size", "chunkSize"]
+    },
+    {
+      "id": "q02",
+      "query": "what overlap does the chunker use",
+      "expectedSubstrings": ["100-token overlap", "100 tokens", "overlap"]
+    },
+    {
+      "id": "q03",
+      "query": "how does the chunker pick boundaries",
+      "expectedSubstrings": ["heading", "boundary preference", "section boundaries"]
+    },
+    {
+      "id": "q04",
+      "query": "are chunks IDs deterministic",
+      "expectedSubstrings": ["Stable IDs", "sha256", "deterministic"]
+    },
+    {
+      "id": "q05",
+      "query": "what's the contextualizer prompt",
+      "expectedSubstrings": ["situate this chunk", "succinct context", "improving search retrieval"]
+    },
+    {
+      "id": "q06",
+      "query": "which model does the contextualizer use",
+      "expectedSubstrings": ["claude-haiku-4-5", "Claude Haiku", "claude-haiku"]
+    },
+    {
+      "id": "q07",
+      "query": "is prompt caching mandatory in the contextualizer",
+      "expectedSubstrings": ["Prompt caching is mandatory", "cache_control", "prompt-caching-2024-07-31"]
+    },
+    {
+      "id": "q08",
+      "query": "cost target for contextualization",
+      "expectedSubstrings": ["$1.02", "$1.02 per 1M", "1.02 per 1M"]
+    },
+    {
+      "id": "q09",
+      "query": "what does the contextualizer return on failure",
+      "expectedSubstrings": ["contextStatus", "failed", "contextFailureReason"]
+    },
+    {
+      "id": "q10",
+      "query": "how does the contextualizer handle the prompt cache",
+      "expectedSubstrings": ["cacheable block", "cache_control: ephemeral", "cache hit"]
+    },
+    {
+      "id": "q11",
+      "query": "what dense embedder is used",
+      "expectedSubstrings": ["Voyage", "voyage-3-large", "voyage"]
+    },
+    {
+      "id": "q12",
+      "query": "what is the BM25 IDF formula",
+      "expectedSubstrings": ["log(1 +", "(N - df + 0.5)", "non-negative"]
+    },
+    {
+      "id": "q13",
+      "query": "what BM25 parameters does the index use",
+      "expectedSubstrings": ["k1=1.2", "b=0.75", "Lucene"]
+    },
+    {
+      "id": "q14",
+      "query": "how is the BM25 index persisted",
+      "expectedSubstrings": ["bun:sqlite", "sqlite", "inverted index"]
+    },
+    {
+      "id": "q15",
+      "query": "what happens when the embedder has no API key",
+      "expectedSubstrings": ["fail-open", "null embedding", "BM25 carries"]
+    },
+    {
+      "id": "q16",
+      "query": "how does the retriever fuse rankings",
+      "expectedSubstrings": ["Reciprocal Rank Fusion", "RRF", "1/(k+rank)"]
+    },
+    {
+      "id": "q17",
+      "query": "what's the default RRF k value",
+      "expectedSubstrings": ["k=60", "60 (standard)", "RRF damping"]
+    },
+    {
+      "id": "q18",
+      "query": "what is the retriever fan-out size",
+      "expectedSubstrings": ["top-150", "150", "fan-out"]
+    },
+    {
+      "id": "q19",
+      "query": "how does the retriever break ties",
+      "expectedSubstrings": ["Tie-breaker", "tie-break", "lexicographic"]
+    },
+    {
+      "id": "q20",
+      "query": "is the retriever a pure function",
+      "expectedSubstrings": ["pure function", "Pure function", "no I/O"]
+    },
+    {
+      "id": "q21",
+      "query": "which reranker does the spec choose",
+      "expectedSubstrings": ["Cohere", "rerank-v3.5", "rerank-3.5"]
+    },
+    {
+      "id": "q22",
+      "query": "how does the reranker handle missing API key",
+      "expectedSubstrings": ["fail-open", "rerankerScore: null", "Fail-open"]
+    },
+    {
+      "id": "q23",
+      "query": "what document body does the reranker send to Cohere",
+      "expectedSubstrings": ["preamble", "contextPreamble", "contextualized"]
+    },
+    {
+      "id": "q24",
+      "query": "what is recall@20",
+      "expectedSubstrings": ["recall@20", "1 − recall@20", "1−recall"]
+    },
+    {
+      "id": "q25",
+      "query": "what is the BM25-only target",
+      "expectedSubstrings": ["6.5%", "Plain embeddings", "BM25 only"]
+    },
+    {
+      "id": "q26",
+      "query": "what is the embeddings + BM25 target",
+      "expectedSubstrings": ["4.0%", "Embeddings + BM25", "Contextual BM25"]
+    },
+    {
+      "id": "q27",
+      "query": "what is the reranker target",
+      "expectedSubstrings": ["2.5%", "Reranker", "+ Reranker"]
+    },
+    {
+      "id": "q28",
+      "query": "what is parry",
+      "expectedSubstrings": ["prompt-injection", "protectai/deberta", "parry"]
+    },
+    {
+      "id": "q29",
+      "query": "what threshold marks suspicious content",
+      "expectedSubstrings": ["0.3", "SUSPICIOUS", "suspicious"]
+    },
+    {
+      "id": "q30",
+      "query": "what threshold marks malicious content",
+      "expectedSubstrings": ["0.8", "MALICIOUS", "malicious"]
+    },
+    {
+      "id": "q31",
+      "query": "how does the parry scanner cache results",
+      "expectedSubstrings": ["content hash", "bloom filter", "BloomCache"]
+    },
+    {
+      "id": "q32",
+      "query": "what readers exist in the crawlee content layer",
+      "expectedSubstrings": ["subagent-md", "subagent-html", "subagent-xml"]
+    },
+    {
+      "id": "q33",
+      "query": "what does subagent-md handle",
+      "expectedSubstrings": ["markdown passthrough", "frontmatter strip", "subagent-md"]
+    },
+    {
+      "id": "q34",
+      "query": "what does subagent-html convert to",
+      "expectedSubstrings": ["Markdown", "htmlToMarkdown", "Readability"]
+    },
+    {
+      "id": "q35",
+      "query": "what does subagent-xml parse",
+      "expectedSubstrings": ["sitemaps", "Atom", "OpenAPI"]
+    },
+    {
+      "id": "q36",
+      "query": "what does subagent-js extract",
+      "expectedSubstrings": ["named export", "JSON5", "literal evaluator"]
+    },
+    {
+      "id": "q37",
+      "query": "what bloom filter size at 100k items",
+      "expectedSubstrings": ["120 KB", "120KB", "100k items"]
+    },
+    {
+      "id": "q38",
+      "query": "what's the bloom filter false positive rate",
+      "expectedSubstrings": ["1%", "1% false-positive", "false-positive rate"]
+    },
+    {
+      "id": "q39",
+      "query": "is the bloom filter keyed by URL",
+      "expectedSubstrings": ["content SHA-256", "content-hash", "not URL"]
+    },
+    {
+      "id": "q40",
+      "query": "what does the parity tracker track",
+      "expectedSubstrings": ["per-skill matrix", "ported", "tbd"]
+    },
+    {
+      "id": "q41",
+      "query": "what plugins does the parity tracker cover",
+      "expectedSubstrings": ["productivity", "product-management", "engineering"]
+    },
+    {
+      "id": "q42",
+      "query": "what status values does parity tracker use",
+      "expectedSubstrings": ["ported", "tbd", "divergent"]
+    },
+    {
+      "id": "q43",
+      "query": "how is the parity tracker auto-updated",
+      "expectedSubstrings": ["bun run parity-check", "deriveStatus", "drift"]
+    },
+    {
+      "id": "q44",
+      "query": "what does the skill-creator skill do",
+      "expectedSubstrings": ["scaffold", "SKILL.md", "skill-creator"]
+    },
+    {
+      "id": "q45",
+      "query": "what advanced patterns does skill-creator demonstrate",
+      "expectedSubstrings": ["context: fork", "agent: Explore", "dynamic context"]
+    },
+    {
+      "id": "q46",
+      "query": "what is the cookbook ontology",
+      "expectedSubstrings": ["12 categories", "cookbook", "Anthropic Cookbook"]
+    },
+    {
+      "id": "q47",
+      "query": "what auth substitution does cookbook ontology require",
+      "expectedSubstrings": ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "auth substitution"]
+    },
+    {
+      "id": "q48",
+      "query": "what does llms.txt ingestion plan cover",
+      "expectedSubstrings": ["1262 pages", "platform.claude.com", "5 sections"]
+    },
+    {
+      "id": "q49",
+      "query": "what is the llms.txt eager ingest scope",
+      "expectedSubstrings": ["125 pages", "Build", "Admin"]
+    },
+    {
+      "id": "q50",
+      "query": "what does the llms.txt watcher routine do",
+      "expectedSubstrings": ["weekly", "delta", "Mondays"]
+    }
+  ]
+}

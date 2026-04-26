@@ -334,6 +334,36 @@ the Anthropic blog corpus at `claude.com/blog/*`.
 **Test placement**: `tests/kb/contextual-retrieval.test.ts` (todo-cases
 shipped with the spec; pass when implementation lands).
 
+**Implementation notes (2026-04-26, closes #80):**
+- Harness lives at `tests/kb/contextual-retrieval.eval.ts`. Runs via
+  `bun run kb:eval`. The `.eval.ts` extension keeps it OUT of `bun test`
+  (CI doesn't run it — paid API calls).
+- Eval set: `tests/kb/eval-questions/questions.json` (v1, 50 questions).
+  Each question has `expectedSubstrings` — unique-enough phrases that,
+  if any one appears in any top-20 chunk's text, count as recalled.
+  Multiple substrings = OR (any match counts).
+- Eval corpus: `docs/spec/` + `docs/research/` markdown files.
+  ~25 files, walked recursively. Chunked deterministically via the
+  iter-31 chunker, so the eval is reproducible across runs.
+- **Tier independence**: tier 1 (BM25-only) runs offline. Tier 2
+  (+contextual) skips when `ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN`
+  is missing. Tier 3 (+reranker) skips when `COHERE_API_KEY` is missing.
+  A skipped tier is reported as `skipped: <reason>`, not as failed.
+- **`bun test` smoke coverage**: `tests/kb/eval-smoke.test.ts` exercises
+  `loadCorpus`, `chunkAll`, `runBm25Tier`, `summarize` — the offline
+  pieces — so a regression breaks `bun test`, not just `kb:eval`. The
+  smoke test reports the live BM25-only failure rate as informational
+  output but doesn't gate on the target (which is set by the full
+  pipeline, not BM25 alone).
+- **Exit code**: `kb:eval` exits 1 when any attempted (non-skipped) tier
+  exceeds its target. Skipped tiers don't trigger non-zero exit. Per
+  the issue's "CI does NOT run it" rule, the exit code is for local
+  regression checking by the orchestrator.
+- **Per-stage breakdown** ("caught at"): every query's first-passing
+  tier is reported. BM25 → contextual → reranker → missed → unknown
+  (when only the offline tier ran). Surfaces which stage is doing the
+  retrieval lift so future eval-set additions can target weak spots.
+
 ## Implementation issues (Wave 1)
 
 Each piece becomes one autonomous-orchestrator iteration:
