@@ -1,7 +1,25 @@
-.section {
+.article {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-8);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-6);
+}
+
+.crumb {
+  font-size: var(--type-sm);
+  color: var(--fg-muted);
+  align-self: flex-start;
+}
+
+.crumb:hover {
+  color: var(--accent);
 }
 
 .title {
@@ -15,25 +33,63 @@
   color: var(--accent);
 }
 
-.subtitle {
-  color: var(--fg-muted);
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
-.placeholder {
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-8);
-  background: var(--bg-elevated);
+.repoLink {
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
   color: var(--fg-muted);
-  text-align: center;
+  letter-spacing: 0.02em;
 }
 
-.backLink {
-  align-self: flex-start;
-  font-size: var(--type-sm);
+.repoLink:hover {
   color: var(--accent);
 }
 
-.backLink:hover {
-  color: var(--accent-strong);
+.sectionTitle {
+  font-size: var(--type-xl);
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
+  margin-bottom: var(--space-4);
+}
+
+.sectionMeta {
+  font-family: var(--font-mono);
+  font-size: var(--type-sm);
+  font-weight: var(--weight-normal);
+  color: var(--fg-muted);
+}
+
+.readme {
+  display: flex;
+  flex-direction: column;
+}
+
+.issues {
+  display: flex;
+  flex-direction: column;
+}
+
+.issueList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+.fallbackHint {
+  margin-top: var(--space-3);
+  font-size: var(--type-sm);
+  color: var(--fg-muted);
+}
+
+.fallbackHint a {
+  font-family: var(--font-mono);
 }

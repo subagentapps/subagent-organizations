@@ -81,7 +81,7 @@ The full per-spec implementation lands in shippable slices:
 | ✅ B | MarkdownBody + AdrIndex + AdrPage + Changelog (read static fixture) |
 | ✅ C | Dashboard kanban: IssueCard, StatusColumn, KanbanGrid, PluginFilter wired against static `projects-snapshot.json` fixture |
 | ✅ D | useProjects hook + /api/projects Pages Function (offline-fallback if no GITHUB_TOKEN) + URL `?slug=` sync |
-| E | /api/github-file Pages Function + plugin landing pages + live ADR/Changelog fetch |
+| ✅ E | /api/github-file Pages Function + plugin landing pages with live README |
 | F | Final polish: snapshot fixture build script, README pass, accessibility audit |
 
 PR D + E need the user to set up Cloudflare account / GITHUB_TOKEN (CLAUDE.md
