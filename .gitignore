@@ -7,5 +7,6 @@ dist/
 !.env.example
 coverage/
 .turbo/
-# vendor/ — REMOVED. The vendor/anthropic/ tree is now tracked as git submodules.
+# vendor/ — REMOVED. The vendor/anthropic/ tree is tracked as git submodules.
+# vendor/lsp/ holds vendored static spec snapshots; tracked.
 # Add per-path entries here if you create transient vendor dirs that shouldn't be tracked.
