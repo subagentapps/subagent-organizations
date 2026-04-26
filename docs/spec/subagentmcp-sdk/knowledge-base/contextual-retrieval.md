@@ -114,6 +114,30 @@ fall back to embedding the raw chunk WITHOUT context — degraded mode, not
 hard fail. Log the degradation in the chunk's metadata so re-runs can
 retry.
 
+**Implementation notes (2026-04-26, closes #76):**
+- No `@anthropic-ai/sdk` dep. Plain `fetch` against the Messages API
+  with the `prompt-caching-2024-07-31` beta header. Continues the
+  iter-23/25/26/27/28/29 zero-dep precedent. Swap to the SDK if we
+  adopt streaming, batches, or beta features beyond prompt caching.
+- **Document goes in a cacheable block, chunk doesn't.** The Messages
+  request has two `text` content blocks: block 0 = `<document>...</document>
+  Here is the chunk... <chunk>` with `cache_control: { type: "ephemeral" }`;
+  block 1 = `${chunkText}</chunk> Please give a short succinct context...`
+  with no cache_control. So multi-chunk runs against the same document
+  hit the cache from chunk 2 onward.
+- **Sequential `contextualizeAll`**, not parallel. Sequential is required
+  to warm the prompt cache: a parallel fan-out would ALL miss the cache
+  on the first request because none would have populated it yet.
+  Sequential pays one cache-creation cost up front and then ~10× cheaper
+  cache reads for every remaining chunk.
+- **Auth fallback**: `opts.apiKey` → `ANTHROPIC_API_KEY` → `CLAUDE_CODE_OAUTH_TOKEN`.
+  Last fallback per `cookbook-ontology.md` § auth-substitution.
+- **Failure shape**: `ContextualizedChunk { ...chunk, contextPreamble: null,
+    contextStatus: "failed", contextFailureReason: <enum-string> }`.
+  Failure reasons surfaced: `missing_api_key`, `http_<NNN>`, `throw_<msg>`,
+  `empty_response`. The eval pipeline can decide whether to retry on
+  next rebuild based on the reason.
+
 ### 3. Embedder + BM25 indexer — `kb/index.ts`
 
 **Responsibility:** build TWO parallel indexes over `(contextPreamble + "\n\n" + chunk.text)`:
