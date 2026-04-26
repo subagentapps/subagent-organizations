@@ -7,6 +7,7 @@ dist/
 !.env.example
 coverage/
 .turbo/
-# vendor/ — REMOVED. The vendor/anthropic/ tree is tracked as git submodules.
-# vendor/lsp/ holds vendored static spec snapshots; tracked.
-# Add per-path entries here if you create transient vendor dirs that shouldn't be tracked.
+# vendor/ — gitignored per CLAUDE.md #5 ("Don't add submodules"). Used by
+# src/manifest/sync.ts as a clone-on-demand cache. Anything written here is
+# transient and should not be tracked.
+vendor/
