@@ -13,6 +13,7 @@ context** and **dedups via bloom filter** so the same page never burns context t
 | `code.claude.com/docs/en/sub-agents.md` fetched twice in two different turns | Content-hash bloom filter; second fetch returns `null` from cache |
 | WebFetch failing on JS-heavy pages (claude.ai/blogs returned 403) | Crawlee uses Playwright headless Chromium for JS-rendered pages |
 | Manual HTML grepping with no schema validation | Outputs are typed `HTMLReadResult` with `sourceSha256` ready for ref pinning |
+| Untrusted external content can carry prompt-injection payloads (e.g. hidden `Ignore previous instructions...` in scraped HTML) | `parry` scans every reader's output before LLM context exposure (see "parry integration" section) |
 
 ## The four readers
 
@@ -211,6 +212,81 @@ For raw markdown URLs (GitHub raw, docs `.md` URLs). Minimal processing:
 - Optionally strip code-block fences if `opts.unwrapCode` is set
 - Return both raw markdown body and parsed frontmatter
 
+## parry integration — prompt-injection scanning
+
+Every reader runs **parry** (prompt-injection scanner; HuggingFace-hosted
+`protectai/deberta-v3-base-prompt-injection-v2`) on its markdown output
+**before** the bloom-filter `add()` call. Caching the scan result with the
+content hash means a page is scanned **once per content version**, not
+once per LLM read.
+
+### Pipeline placement
+
+```
+…
+[markdown-it]                    ← HTML → Markdown
+  ↓ markdown
+[byte-budget enforcement]
+  ↓ markdown slice
+[parry.scan(markdown)]           ← NEW. Returns { score, label, decision }.
+  ↓ scanned markdown
+[validators.fetchedContent()]    ← Zod check on result shape (now includes parryScore)
+  ↓
+[bloom add(content-hash)]        ← scan result is part of the cached payload
+  ↓
+HTMLReadResult                    → returned to caller (with parryScore field)
+```
+
+### Decision rules
+
+| `parry.scan()` label | Default action |
+|---|---|
+| `SAFE` (score < 0.3) | Return content normally |
+| `SUSPICIOUS` (0.3 ≤ score < 0.8) | Return content with `warnings: ["prompt_injection_suspicious"]`; caller may downgrade trust |
+| `MALICIOUS` (score ≥ 0.8) | Return `{ data: null, blocked: true, reason: "prompt_injection" }`; do NOT cache content; cache the BLOCK decision so re-fetch short-circuits |
+
+Thresholds are configurable per reader via `ContentReaderOptions.parryThresholds`.
+
+### Why scan markdown, not HTML
+
+- Readability strips most chrome; the markdown is what reaches the LLM
+- HTML scanning produces false positives on legitimate `<script>` blocks
+- Markdown is what the bloom filter hashes, so scan + hash are atomic
+
+### What gets cached on a BLOCK
+
+```ts
+type BloomEntry =
+  | { kind: 'content'; markdown: string; parryScore: number; fetchedAt: string }
+  | { kind: 'blocked'; reason: string; parryScore: number; fetchedAt: string };
+```
+
+A blocked entry means the next fetch of the same content hash returns the
+block decision **without re-running parry** — defends against attacker
+re-trying the same payload.
+
+### Cost
+
+Parry scans run via **HuggingFace Inference API** (free tier sufficient for
+<1k scans/day). No GPU needed locally. Token-cost: ~50 tokens per page (the
+score + label, not the page content).
+
+### Out of scope for this layer
+
+- Custom training of a parry model — use the published one
+- Real-time scanning of LLM **outputs** — that's a separate hook
+  (`UserPromptSubmit` / `PostMessage`)
+- Authentication-aware scanning (different thresholds for trusted vs
+  untrusted sources) — defer until we have a `source.trustLevel` enum
+
+### Pre-requisites
+
+- HuggingFace API token in `~/.config/parry/token` (account creation =
+  CLAUDE.md gate; user sets up once)
+- `parry` Python package installed via `uv` (per `installs/tier-2-installs.md`)
+- The reader pipeline calls `parry` via subprocess or HTTP API; both
+  abstractions live in `tools/_parry-scan.ts`
+
 ## Migration plan
 
 | Existing usage | Replace with |
@@ -239,3 +315,4 @@ For raw markdown URLs (GitHub raw, docs `.md` URLs). Minimal processing:
 - bloom-filters npm: https://github.com/Callidon/bloom-filters (MIT)
 - @babel/parser for JS extraction: https://babeljs.io
 - xml2js: https://github.com/Leonidas-from-XIV/node-xml2js (MIT)
+- parry (prompt-injection scanner): https://github.com/protectai/llm-guard + HF model `protectai/deberta-v3-base-prompt-injection-v2`
