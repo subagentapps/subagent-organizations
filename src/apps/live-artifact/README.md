@@ -79,7 +79,7 @@ The full per-spec implementation lands in shippable slices:
 |---|---|
 | ✅ A | Shell + 4 stub routes + Field animation + design tokens |
 | ✅ B | MarkdownBody + AdrIndex + AdrPage + Changelog (read static fixture) |
-| C | Dashboard kanban: 8 components (IssueCard, StatusColumn, chips, KanbanGrid) wired against static fixture |
+| ✅ C | Dashboard kanban: IssueCard, StatusColumn, KanbanGrid, PluginFilter wired against static `projects-snapshot.json` fixture |
 | D | useProjects hook + /api/projects Pages Function (offline-fallback if no GITHUB_TOKEN) |
 | E | /api/github-file Pages Function + plugin landing pages + live ADR/Changelog fetch |
 | F | Final polish: snapshot fixture build script, README pass, accessibility audit |
