@@ -4,13 +4,13 @@ Date: 2026-04-25 · Branch: `feat/anthropic-vendor`
 Companion to: [`docs/research/github-well-architected-deep-dive.md`](../research/github-well-architected-deep-dive.md) §7
 Source pattern: https://wellarchitected.github.com/library/architecture/recommendations/implementing-polyrepo-engineering/
 
-> **Stipulated example, not verified.** This doc uses three Anthropic announcements
-> (Anthropic Labs Design Labs at claude.ai/design, a Claude Desktop update, a Claude Cowork
-> update) as illustrative child repos. I could not independently fetch
-> `https://claude.com/blogs/` (302→`claude.ai/blogs` returns 403 for this client).
-> The architecture below stands regardless of whether the announcements are real; the
-> child repos are placeholders for any three markdown knowledge bases you'd want to manage
-> together.
+> **Examples verified via Chrome MCP on 2026-04-25.** All three blog posts read in full:
+>
+> | Post | URL | Date | Key facts |
+> |---|---|---|---|
+> | **Introducing Claude Design by Anthropic Labs** | https://www.anthropic.com/news/claude-design-anthropic-labs | Apr 17, 2026 | Anthropic Labs product. Powered by Opus 4.7. Research preview for Pro/Max/Team/Enterprise. Designs at `claude.ai/design`. Canva integration; export PPTX/PDF/HTML; Claude Code handoff bundle. |
+> | **Redesigning Claude Code on desktop for parallel agents** | https://claude.com/blog/claude-code-desktop-redesign | Apr 14, 2026 | Sidebar for parallel sessions, drag-and-drop layout, integrated terminal + in-app file editor, side chat (⌘+;), 3 view modes (Verbose/Normal/Summary), CLI plugin parity, SSH on Mac+Linux. |
+> | **Making Claude Cowork ready for enterprise** | https://claude.com/blog/cowork-for-enterprise | Apr 9, 2026 | GA on all paid plans. Adds RBAC, group spend limits, OpenTelemetry events for tools/connectors/skills, Analytics API, Zoom MCP connector, per-tool connector controls. |
 
 ## Context
 
@@ -26,14 +26,61 @@ The children are independent markdown KBs that release on their own cadence.
 
 ## The 3 child repos (illustrative)
 
-| # | Child repo | Subject | Sources to track |
-|---|---|---|---|
-| 1 | `subagentapps/kb-anthropic-design-labs` | Anthropic Labs "Design Labs" at claude.ai/design | Blog post + `claude.ai/design` UI surface + design-system primitives released via the labs |
-| 2 | `subagentapps/kb-claude-desktop` | Claude Desktop releases & features | Blog posts on each desktop update; settings & permission model evolution; computer-use feature |
-| 3 | `subagentapps/kb-claude-cowork` | Claude Cowork (multi-user/team workflows) | Blog posts on cowork; team admin, agent-team interactions |
+| # | Child repo | Subject | Anchor URL | Source post |
+|---|---|---|---|---|
+| 1 | `subagentapps/kb-anthropic-design-labs` | Claude Design (Anthropic Labs) | `claude.ai/design` | https://www.anthropic.com/news/claude-design-anthropic-labs (Apr 17, 2026) |
+| 2 | `subagentapps/kb-claude-code-desktop` | Claude Code desktop redesign for parallel agents | `claude.ai/download` | https://claude.com/blog/claude-code-desktop-redesign (Apr 14, 2026) |
+| 3 | `subagentapps/kb-claude-cowork` | Claude Cowork enterprise GA | `claude.com/product/cowork` | https://claude.com/blog/cowork-for-enterprise (Apr 9, 2026) |
 
 Each child repo is a **pure-markdown KB** — no source code, no build step. Same shape we use
 in `docs/spec/` here, but per-product.
+
+### Initial content seed for each child
+
+What goes into each child's `content/` on day one, drawn directly from the blog posts:
+
+**`kb-anthropic-design-labs/content/`**
+- `overview/what-is-claude-design.md` — the product description (Anthropic Labs, Opus 4.7-powered, research preview, Pro/Max/Team/Enterprise)
+- `overview/use-cases.md` — the 6 categories from the post: realistic prototypes, product wireframes, design explorations, pitch decks, marketing collateral, frontier design
+- `how-it-works/brand-system.md` — Claude builds a design system by reading codebase + design files at onboarding
+- `how-it-works/import-sources.md` — text prompt, DOCX/PPTX/XLSX upload, codebase, web capture tool
+- `how-it-works/refine-controls.md` — inline comments, direct edits, adjustment knobs (spacing/color/layout)
+- `how-it-works/collaborate.md` — org-scoped sharing, view-only links, edit access, group conversations
+- `how-it-works/export.md` — internal URL, folder, Canva, PDF, PPTX, standalone HTML
+- `how-it-works/claude-code-handoff.md` — the handoff bundle (notable for our broader Claude-Code-centric stack)
+- `integrations/canva.md` — quote from Melanie Perkins; the partnership angle
+- `enterprise/admin-controls.md` — off by default for Enterprise; admin enable in Org settings
+- `changelog/2026-04-17-launch.md` — the launch entry
+
+**`kb-claude-code-desktop/content/`**
+- `overview/redesign-rationale.md` — "the shape of agentic work has changed" — many things in flight, you in the orchestrator seat
+- `features/parallel-sessions.md` — sidebar, filter by status/project/env, group by project, auto-archive on PR merge
+- `features/side-chat.md` — `⌘+;` (or `Ctrl+;`), pulls context from main thread, doesn't add back
+- `features/integrated-terminal.md`, `features/in-app-file-editor.md`, `features/diff-viewer.md`, `features/preview-pane.md` — the four review-without-leaving features
+- `features/drag-and-drop-layout.md`
+- `features/view-modes.md` — Verbose / Normal / Summary
+- `features/keyboard-shortcuts.md` — `⌘+/` for the full list
+- `features/usage-button.md` — context window + session usage at a glance
+- `features/streaming.md` — responses stream as Claude generates
+- `compat/cli-plugin-parity.md` — same plugins work in desktop and terminal
+- `compat/ssh-mac-linux.md` — SSH support on Mac alongside Linux
+- `install/getting-started.md` — Pro/Max/Team/Enterprise + API
+- `changelog/2026-04-14-redesign.md`
+
+**`kb-claude-cowork/content/`**
+- `overview/what-is-cowork.md` — handles tasks, drafts deliverables, keeps teams up to date
+- `overview/early-signals.md` — *"the vast majority of Claude Cowork usage comes from outside engineering teams"* (operations, marketing, finance, legal)
+- `enterprise/role-based-access-controls.md` — manual or SCIM groups; custom roles
+- `enterprise/group-spend-limits.md` — per-team budgets in admin console
+- `enterprise/usage-analytics.md` — admin dashboard + Analytics API; per-user activity, skill/connector invocations, DAU/WAU/MAU alongside Chat & Code
+- `enterprise/opentelemetry.md` — events for tools, connectors, files read/modified, skills used; Splunk/Cribl compat; Compliance API correlation
+- `enterprise/per-tool-connector-controls.md` — read access without write
+- `integrations/zoom.md` — Zoom MCP connector; AI Companion summaries + transcripts
+- `case-studies/zapier.md` — DB + Slack + Jira → engineering bottleneck dashboard
+- `case-studies/jamf.md` — 7-facet review → 45-min guided self-evaluation
+- `case-studies/airtree.md` — board prep workflow from portfolio Drive + Slack
+- `availability/plans.md` — GA on all paid plans, macOS + Windows
+- `changelog/2026-04-09-enterprise-ga.md`
 
 ## The decision: `.gitmodules` vs `.gitattributes` vs neither
 
@@ -50,7 +97,7 @@ when you clone the meta-repo, or are auditing fixed snapshots.
 subagent-organizations/                    ← meta-repo
 ├── vendor/kb/
 │   ├── kb-anthropic-design-labs/          ← submodule, pinned SHA
-│   ├── kb-claude-desktop/                 ← submodule, pinned SHA
+│   ├── kb-claude-code-desktop/                 ← submodule, pinned SHA
 │   └── kb-claude-cowork/                  ← submodule, pinned SHA
 └── .gitmodules                            ← chmod 444, update = none
 ```
@@ -231,34 +278,37 @@ Mirrors `packages.json` but typed against a new `KnowledgeBase` primitive:
   "kbs": [
     {
       "id": "kb-anthropic-design-labs",
-      "name": "Anthropic Labs — Design Labs",
+      "name": "Claude Design (Anthropic Labs)",
       "repo": "subagentapps/kb-anthropic-design-labs",
       "ref": "v0.1.0",
       "topic": "design",
       "subjectUrl": "https://claude.ai/design",
-      "blogUrl": "https://claude.com/blogs/<slug-tbd>",
+      "blogUrl": "https://www.anthropic.com/news/claude-design-anthropic-labs",
+      "publishDate": "2026-04-17",
       "lastBumped": "2026-04-25",
       "owners": ["@admin-jadecli"]
     },
     {
-      "id": "kb-claude-desktop",
-      "name": "Claude Desktop",
-      "repo": "subagentapps/kb-claude-desktop",
+      "id": "kb-claude-code-desktop",
+      "name": "Claude Code Desktop (parallel-agents redesign)",
+      "repo": "subagentapps/kb-claude-code-desktop",
       "ref": "v0.1.0",
       "topic": "product",
       "subjectUrl": "https://claude.ai/download",
-      "blogUrl": "https://claude.com/blogs/<slug-tbd>",
+      "blogUrl": "https://claude.com/blog/claude-code-desktop-redesign",
+      "publishDate": "2026-04-14",
       "lastBumped": "2026-04-25",
       "owners": ["@admin-jadecli"]
     },
     {
       "id": "kb-claude-cowork",
-      "name": "Claude Cowork",
+      "name": "Claude Cowork (enterprise GA)",
       "repo": "subagentapps/kb-claude-cowork",
       "ref": "v0.1.0",
       "topic": "product",
-      "subjectUrl": "https://claude.ai/cowork",
-      "blogUrl": "https://claude.com/blogs/<slug-tbd>",
+      "subjectUrl": "https://claude.com/product/cowork",
+      "blogUrl": "https://claude.com/blog/cowork-for-enterprise",
+      "publishDate": "2026-04-09",
       "lastBumped": "2026-04-25",
       "owners": ["@admin-jadecli"]
     }
@@ -331,7 +381,7 @@ src/data/kb-manifest.json  @admin-jadecli @alex-jadecli
 Each KB child has its own scoped CODEOWNERS that the meta-repo's `_reusable-kb-validate.yml`
 checks for:
 ```
-# .github/CODEOWNERS — kb-claude-desktop
+# .github/CODEOWNERS — kb-claude-code-desktop
 *       @admin-jadecli
 content/changelog/  @admin-jadecli @alex-jadecli   # only specific reviewers can touch changelog
 ```
@@ -465,4 +515,7 @@ Every phase is independently revertible — no big-bang migration.
 - Existing primitive design: [`./core/resource.md`](./core/resource.md), [`./primitives/awesome-list.md`](./primitives/awesome-list.md) (template for new `KnowledgeBase` primitive)
 - Existing manifest design: [`./manifest/load.md`](./manifest/load.md), [`./manifest/render.md`](./manifest/render.md), [`./manifest/sync.md`](./manifest/sync.md)
 - Bot/release pipeline patterns to copy: [`../research/stainless-app-bot.md`](../research/stainless-app-bot.md)
-- Anthropic blog posts (referenced as stipulated examples; not independently fetched in this session): https://claude.com/blogs/
+- Anthropic blog posts (verified via Chrome MCP on 2026-04-25):
+  - https://www.anthropic.com/news/claude-design-anthropic-labs (Apr 17, 2026)
+  - https://claude.com/blog/claude-code-desktop-redesign (Apr 14, 2026)
+  - https://claude.com/blog/cowork-for-enterprise (Apr 9, 2026)
