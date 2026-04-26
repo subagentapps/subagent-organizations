@@ -7,8 +7,12 @@ between iteration 8 and any iteration 9).
 
 ## What's here
 
-`prompt-verbatim.md` — the exact text of the expanded directive, frozen
-as the canonical input.
+- `prompt-verbatim.md` — the exact text of the original expanded
+  directive (vendor + akw + Cloudflare + contextual-retrieval + KB)
+- `prompt-verbatim-part-2.md` — three follow-up messages: orchestrator +
+  autonomous-agents architecture, cost+schedule answers, strategy doc
+  + dogfood gate + tools-reference + Projects context. Also consolidates
+  every URL/link from messages 3-5 in one searchable section.
 
 ## Why it's staged
 
