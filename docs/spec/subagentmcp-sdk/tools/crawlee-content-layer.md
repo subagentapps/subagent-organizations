@@ -253,6 +253,34 @@ fall back to Playwright** only when the plain fetch fails or returns suspicious 
 
 ## Subagent-js: extracting typed data from MDX/JS pages
 
+**Implementation note (2026-04-26):** the original spec called for
+`@babel/parser` (~1MB unpacked) + `@babel/traverse` to handle full-fidelity
+JS AST traversal. Per the issue's own guidance ("Defer until a second
+caller exists") and the iter-23/25/26/27 zero-dep precedents, this repo
+ships a **JSON5-ish literal evaluator** that handles the documented use
+case (`EVENTS` array in `context-window.md`) and rejects shapes it can't
+safely evaluate so callers know when to upgrade.
+
+Supported subset (in `_js-literal-eval.ts`):
+- Object literals (unquoted or quoted keys)
+- Array literals
+- Strings (single/double-quoted with backslash escapes; template literals
+  *without* `${...}` interpolation)
+- Numbers (decimal, scientific, signed, hex)
+- `true` / `false` / `null` / `undefined`
+- Trailing commas
+- Line + block comments
+
+Rejected (throws `JsLiteralError`):
+- Function calls, member access, `new` expressions
+- Template literals with interpolation
+- Computed object keys, spread operators
+- JSX, arrow functions, function expressions
+
+When a real second caller surfaces with one of the rejected shapes, swap
+the body of `evaluateNamedExport()` for a `@babel/parser` call — the
+`subagent-js` reader interface stays stable.
+
 `context-window.md` is the canonical example: the page exports a React component whose
 `EVENTS` array is the actual data structure we care about. `subagent-html` would convert
 the prose around it but lose the data. `subagent-js` parses the JS source:
