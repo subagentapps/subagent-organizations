@@ -1,0 +1,208 @@
+# `subagentapps/*` org inventory
+
+Status: living document — orchestrator-managed
+Source: `gh api graphql` against `repository(owner:"subagentapps", name:...)` — token-efficient root metadata only
+Companion to: `docs/research/anthropic-github-conventions.md`, `docs/spec/orchestration-strategy.md`
+
+## Purpose
+
+This file is the **one-glance inventory** of every repo the user owns under
+`subagentapps/`. Each section is **root-level metadata only** — never source
+reads on first pass.
+
+Sections come from two sources:
+- **This file (orchestrator-written)**: 5 newly-discovered repos that aren't
+  covered by the scheduled survey routines.
+- **Routine-appended sections**: 5 routines (`subagentapps-survey-1..5`) fire
+  at 22:00–22:08 PDT 2026-04-25 daily, each appending a dated section for
+  one of: `subagent-xml`, `subagent-crawls`, `subagents-platform-execution`,
+  `warehouse`, `anthropic-docs-scraper`.
+
+## Org snapshot — 13 repos (12 owned + 1 fork)
+
+Per https://github.com/orgs/subagentapps/repositories (screenshot 2026-04-25):
+
+| Repo | Status | Coverage |
+|---|---|---|
+| `subagent-organizations` | this repo | (self) |
+| `knowledge-work-plugins-cli` | dogfood target | not surveyed here (separate `docs/research/knowledge-work-plugins-cli-survey.md`) |
+| `cmux` | **fork** (Ghostty-based macOS terminal) | NOT owned — skip |
+| `anthropic-docs-scraper` | owned | routine `subagentapps-survey-5-anthropic-docs-scraper` (22:08 PDT) |
+| `warehouse` | owned | routine `subagentapps-survey-4-warehouse` (22:06 PDT) |
+| `subagents-platform-execution` | owned | routine `subagentapps-survey-3-subagents-platform-execution` (22:04 PDT) |
+| `subagent-crawls` | owned | routine `subagentapps-survey-2-subagent-crawls` (22:02 PDT) |
+| `subagent-xml` | owned | routine `subagentapps-survey-1-subagent-xml` (22:00 PDT) |
+| `managed-subagents` | owned | **§ inline below** |
+| `subagent-platform` | owned | **§ inline below** |
+| `subagent-system-designs` | owned | **§ inline below** — ⚠ scope overlap with this repo |
+| `managedsubagents` | owned | **§ inline below** |
+| `subagent-mcp-app` | owned | **§ inline below** |
+
+## ⚠ Source-of-truth conflict — `subagent-system-designs`
+
+The repo description (verbatim, captured 2026-04-25 21:50 PDT):
+
+> *"Meta-repo: manifests, ADRs, addendums, GraphQL schema, reusable
+> workflows. Source-of-truth for the polyrepo per GitHub Well-Architected
+> (Architecture pillar / Implementing polyrepo on GitHub)."*
+
+This **directly overlaps** with `subagent-organizations`'s framing. The
+new `.claude/CLAUDE.md` for this repo (revised 2026-04-25 ~21:30 PDT) says:
+
+> *"This is a TypeScript reference catalog modeled after the Claude Agent
+> SDK's primitive system."*
+
+Both repos can't be the polyrepo source of truth. Resolution is the user's
+call:
+
+- **Option A**: `subagent-system-designs` is the polyrepo meta-repo;
+  `subagent-organizations` narrows to "TypeScript reference catalog only"
+  (matches the new CLAUDE.md framing).
+- **Option B**: keep `subagent-organizations` as the polyrepo meta-repo;
+  archive `subagent-system-designs` or rescope it.
+- **Option C**: they have non-overlapping scopes that just happen to be
+  described identically.
+
+Until resolved, treat `subagent-system-designs` as **read-only from this
+repo's perspective** — don't write to it, don't reference it as
+authoritative.
+
+## `managed-subagents`
+
+| Field | Value |
+|---|---|
+| Full name | `subagentapps/managed-subagents` |
+| Description | (none) |
+| Default branch | `main` |
+| Primary language | (none / scaffold) |
+| License | (none) |
+| Has issues / projects | yes / yes |
+| Open issues | 0 |
+| Visibility | private |
+| Disk usage (KB) | 0 |
+| Last pushed | 2026-04-25T22:50:43Z |
+
+**WAF presence (root-level only — not deep-checked):** unknown; repo is empty (0 KB).
+
+**Note on naming**: `managed-subagents` (hyphenated) is **distinct** from
+`managedsubagents` (no hyphen). Two separate repos.
+
+**Status**: Wave 0 scaffold; nothing to survey yet. Re-survey once content lands.
+
+## `subagent-platform`
+
+| Field | Value |
+|---|---|
+| Full name | `subagentapps/subagent-platform` |
+| Description | (none) |
+| Default branch | `main` |
+| Primary language | (none / scaffold) |
+| License | (none) |
+| Has issues / projects | yes / yes |
+| Open issues | 0 |
+| Visibility | private |
+| Disk usage (KB) | 0 |
+| Last pushed | 2026-04-25T22:10:17Z |
+
+**Note on naming**: `subagent-platform` (singular) is **distinct** from
+`subagents-platform-execution` (plural with `-execution` suffix). Two
+separate repos.
+
+**Status**: Wave 0 scaffold; empty. Re-survey once content lands.
+
+## `subagent-system-designs` — see ⚠ conflict above
+
+| Field | Value |
+|---|---|
+| Full name | `subagentapps/subagent-system-designs` |
+| Description | "Meta-repo: manifests, ADRs, addendums, GraphQL schema, reusable workflows. Source-of-truth for the polyrepo per GitHub Well-Architected (Architecture pillar / Implementing polyrepo on GitHub)." |
+| Default branch | `main` |
+| Primary language | (none / scaffold) |
+| License | **MIT** |
+| Has issues / projects | yes / yes |
+| Open issues | 0 |
+| Visibility | private |
+| Disk usage (KB) | 1 |
+| Last pushed | 2026-04-25T03:44:41Z |
+
+**Status**: Has a description and a license but only 1 KB on disk — likely
+just LICENSE + README scaffold. The description's claim to be the polyrepo
+source-of-truth conflicts with this repo (see warning above).
+
+## `managedsubagents`
+
+| Field | Value |
+|---|---|
+| Full name | `subagentapps/managedsubagents` |
+| Description | "Internal monorepo for managedsubagents.com — skills, warehouse, jobs API docs" |
+| Default branch | `main` |
+| Primary language | **HTML** |
+| License | (none) |
+| Has issues / projects | yes / yes |
+| Open issues | 0 |
+| Visibility | private |
+| Disk usage (KB) | **193** |
+| Last pushed | 2026-04-25T01:19:46Z |
+
+**Note on naming**: `managedsubagents` (no hyphen) is the `*.com`-named
+repo and is the only one of the 5 surveyed here that has content.
+
+**Status**: 193 KB; HTML primary suggests static site or marketing page.
+Scope: "skills, warehouse, jobs API docs" — overlaps conceptually with the
+KB / contextual-retrieval work tracked under issues #12 (cookbook) and #13
+(KB sources expansion). Worth a follow-up read once Wave 0 closes.
+
+## `subagent-mcp-app`
+
+| Field | Value |
+|---|---|
+| Full name | `subagentapps/subagent-mcp-app` |
+| Description | (none) |
+| Default branch | `main` |
+| Primary language | (none / scaffold) |
+| License | (none) |
+| Has issues / projects | yes / yes |
+| Open issues | 0 |
+| Visibility | private |
+| Disk usage (KB) | 0 |
+| Last pushed | 2026-04-24T21:38:16Z |
+
+**Status**: Wave 0 scaffold; empty. Likely an MCP server or app per the
+naming. Re-survey once content lands.
+
+## Methodology
+
+GraphQL query used (single round-trip, all 5 repos):
+
+```graphql
+{
+  managedSubagents: repository(owner:"subagentapps", name:"managed-subagents") { ... }
+  subagentPlatform: repository(owner:"subagentapps", name:"subagent-platform") { ... }
+  subagentSystemDesigns: repository(owner:"subagentapps", name:"subagent-system-designs") { ... }
+  managedsubagentsDot: repository(owner:"subagentapps", name:"managedsubagents") { ... }
+  subagentMcpApp: repository(owner:"subagentapps", name:"subagent-mcp-app") { ... }
+}
+```
+
+Returned fields: `nameWithOwner`, `description`, `defaultBranchRef.name`,
+`primaryLanguage.name`, `licenseInfo.spdxId`, `hasIssuesEnabled`,
+`hasProjectsEnabled`, `issues(states:OPEN).totalCount`, `pushedAt`,
+`diskUsage`, `isPrivate`.
+
+**No source code reads.** **No README fetches** in this iteration — 4 of 5
+repos are 0–1 KB scaffolds where README would add nothing.
+
+## Routine-appended sections (filled by `subagentapps-survey-1..5` at 22:00–22:08 PDT)
+
+The routines write to this same file with sections like
+`## subagent-xml — survey 2026-04-26 05:00Z` (UTC timestamp). They include
+a richer survey: README first 100 lines + WAF presence checklist
+(CODEOWNERS, dependabot.yml, workflows dir, LICENSE) + open WAF-gap follow-up
+issues against this repo.
+
+When the routines fire, they should APPEND below this line — not edit
+sections written here.
+
+---
+
+<!-- Routines append below this line -->
