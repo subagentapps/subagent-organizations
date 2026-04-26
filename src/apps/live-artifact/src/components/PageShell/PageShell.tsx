@@ -1,11 +1,16 @@
 /**
- * PageShell — top nav + main content area.
+ * PageShell — top nav + main content area + skip-link.
  *
  * Spec: design-brief says "top nav (logo / Dashboard / Plugins / ADR /
  * Changelog), no sidebar, no footer."
  *
- * Used by every route. Field animation is rendered separately by the
- * route components that opt into it (currently only Dashboard).
+ * Accessibility (PR F a11y pass):
+ *   - <a href="#main"> skip-link visible on focus, keyboard users can
+ *     jump past the nav to content
+ *   - aria-current="page" on the active nav link (announced by screen
+ *     readers; supplements the visual teal accent)
+ *   - <main id="main"> matches the skip-link target
+ *   - aria-label on the nav for the landmark screen reader
  */
 
 import { Link, useLocation } from 'wouter';
@@ -33,6 +38,9 @@ export function PageShell({ children }: PageShellProps) {
   const [location] = useLocation();
   return (
     <>
+      <a href="#main" className={styles.skipLink}>
+        Skip to content
+      </a>
       <header className={styles.header}>
         <nav className={styles.nav} aria-label="Primary">
           <Link href="/" className={styles.logoLink}>
@@ -40,24 +48,30 @@ export function PageShell({ children }: PageShellProps) {
             <span className={styles.brand}>subagent-organizations</span>
           </Link>
           <ul className={styles.navList}>
-            {NAV_ITEMS.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={
-                    isActive(location, item)
-                      ? `${styles.navLink} ${styles.navLinkActive}`
-                      : styles.navLink
-                  }
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(location, item);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={
+                      active
+                        ? `${styles.navLink} ${styles.navLinkActive}`
+                        : styles.navLink
+                    }
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
       </header>
-      <main className={styles.main}>{children}</main>
+      <main id="main" className={styles.main} tabIndex={-1}>
+        {children}
+      </main>
     </>
   );
 }

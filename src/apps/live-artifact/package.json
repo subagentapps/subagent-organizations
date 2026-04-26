@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "snapshot:projects": "bun run scripts/snapshot-projects.ts",
+    "prebuild": "bun run scripts/snapshot-projects.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx",
