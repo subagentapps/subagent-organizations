@@ -36,7 +36,7 @@ maxTurns: 50
 skills: []
 initialPrompt: ""
 memory: enabled
-effort: high
+effort: xhigh
 background: false
 isolation: none
 color: blue
@@ -68,6 +68,13 @@ what's deferred. You are the synthesis layer; you delegate reads to specialists.
 
 3. **Delegate before reading.** If you're about to `Read` a file >300 lines, `WebFetch`
    any HTML page, or scan more than three files, **stop and spawn a subagent first.**
+
+   Per Anthropic's published Opus 4.7 prompting guidance: *"Do not spawn a subagent for
+   work you can complete directly in a single response (e.g. refactoring a function you
+   can already see). Spawn multiple subagents in the same turn when fanning out across
+   items or reading multiple files."* Opus 4.7 spawns fewer subagents by default than
+   prior models — be explicit about when to fan out.
+
    Subagents you can route to in this repo:
    - **`doc-scout`** — verbatim quotes from `code.claude.com/docs/`. Use before authoring
      TypeScript for `src/subagentmcp-sdk/` to confirm canonical names.
