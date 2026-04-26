@@ -1,0 +1,241 @@
+# `tools/` — the crawlee-based content layer
+
+Replaces ad-hoc WebFetch / WebSearch usage in our scripts. Routes all external content
+through a typed pipeline that **converts to markdown before content reaches the LLM
+context** and **dedups via bloom filter** so the same page never burns context twice.
+
+## Why this exists (the bugs we already hit)
+
+| Bug | This layer's fix |
+|---|---|
+| Cowork blog post pulled 51 KB of slider/draggable JS as "page text" — ~30k tokens of pure noise | Mozilla Readability + markdown-it preprocessing strips chrome/scripts |
+| LSP 3.17 spec downloaded in full (915 KB / ~250k tokens) | Section-aware reader with byte budget; bloom-filter cache |
+| `code.claude.com/docs/en/sub-agents.md` fetched twice in two different turns | Content-hash bloom filter; second fetch returns `null` from cache |
+| WebFetch failing on JS-heavy pages (claude.ai/blogs returned 403) | Crawlee uses Playwright headless Chromium for JS-rendered pages |
+| Manual HTML grepping with no schema validation | Outputs are typed `HTMLReadResult` with `sourceSha256` ready for ref pinning |
+
+## The four readers
+
+| Reader | When | Output |
+|---|---|---|
+| `subagent-html` | HTML pages (most docs, blog posts) | Markdown via Readability + markdown-it |
+| `subagent-js` | Pages where the *data* is in JS (e.g., context-window.md's `EVENTS` array) | Extracted typed data structures |
+| `subagent-xml` | Atom/RSS feeds, sitemaps, OpenAPI XML | Markdown via xml2js + xslt or direct schema parse |
+| `subagent-md` | Markdown sources (raw GitHub, docs `.md` URLs) | Passthrough with frontmatter normalization |
+
+All four conform to `ContentReader<TOpts, TResult>` from `tools/types.ts`.
+
+## Pipeline (single fetch)
+
+```
+url
+  ↓
+[bloom check]                    ← short-circuit if seen before
+  ↓ miss
+[crawlee fetch]                  ← Playwright if JS-required, plain HTTPS otherwise
+  ↓ html bytes
+[Readability]                    ← strip chrome, nav, footer, scripts
+  ↓ cleaned html
+[markdown-it]                    ← HTML → Markdown
+  ↓ markdown
+[byte-budget enforcement]        ← truncate if > maxBytes; return slice with offset+length
+  ↓ markdown slice
+[validators.fetchedContent()]    ← Zod check on the result shape
+  ↓
+[bloom add(content-hash)]        ← so future fetches dedup
+  ↓
+HTMLReadResult                    → returned to caller
+```
+
+## Bloom filter design
+
+Why bloom, not a hash set:
+
+- **Memory**: a hash set of 100k SHA-256s is ~3 MB; a bloom filter for 100k items at 1%
+  false-positive rate is ~120 KB
+- **False-positives are acceptable**: a bloom-filter "saw it before" miss means we *might*
+  re-fetch a page we already cached at the SQLite-level — cheap, not catastrophic
+- **No false-negatives**: if bloom says "definitely not seen", the SQLite cache is consulted
+
+```ts
+// src/subagentmcp-sdk/tools/_bloom-cache.ts
+import { BloomFilter } from 'bloom-filters';
+import Database from 'better-sqlite3';
+
+export class BloomCache {
+  private bloom: BloomFilter;
+  private db: Database.Database;
+  // Default: 100k expected items, 1% false-positive rate
+  constructor(opts?: { expectedItems?: number; fpRate?: number; dbPath?: string });
+
+  /** Returns true if URL or content has been seen. */
+  has(key: string): boolean;
+
+  /** Mark as seen. */
+  add(key: string): void;
+
+  /** Get cached payload by content-hash. Returns null on bloom miss. */
+  get(contentHash: string): { markdown: string; fetchedAt: string } | null;
+
+  /** Store fresh fetch. */
+  put(contentHash: string, payload: { markdown: string; fetchedAt: string }): void;
+
+  /** Clear bloom + SQLite. */
+  reset(): void;
+}
+```
+
+The bloom filter is keyed by **content SHA-256** (not URL) so:
+- The same URL fetched twice with different content → both stored (e.g., `ultrareview.md`
+  before and after a doc update)
+- Different URLs returning identical content → one cache entry, two URL pointers
+
+## markdown-it preprocessing
+
+Configured to keep the bits Claude actually needs:
+
+```ts
+// src/subagentmcp-sdk/tools/_markdown-it.ts
+import MarkdownIt from 'markdown-it';
+
+export const md = new MarkdownIt({
+  html: false,        // strip raw HTML; we want clean markdown
+  linkify: true,      // auto-linkify URLs
+  typographer: false, // no smart-quote noise
+}).disable([
+  'image',            // images are linkOnly references, not embedded
+]);
+
+export function htmlToMarkdown(html: string, opts?: { maxBytes?: number }): string {
+  const cleaned = readability(html);     // Mozilla Readability
+  const turned = turndown(cleaned, {     // turndown config tuned to match Anthropic doc style
+    headingStyle: 'atx',
+    bulletListMarker: '-',
+    codeBlockStyle: 'fenced',
+  });
+  return opts?.maxBytes ? truncate(turned, opts.maxBytes) : turned;
+}
+```
+
+## Why crawlee specifically
+
+Three concrete features earn it over plain `fetch`:
+
+1. **Playwright for JS-rendered pages** — `claude.ai/blogs` returns 403 to plain `fetch`
+   but renders fine in headless Chromium. Crawlee handles the browser pool.
+2. **Built-in queueing + retry + dedup** — we don't reinvent these
+3. **Auto-throttling** — respects rate limits via crawlee's `RequestQueue`
+
+Cost: ~500 MB RAM for headless Chromium when active. We default to **plain fetch first,
+fall back to Playwright** only when the plain fetch fails or returns suspicious content
+(very small HTML, no `<body>` content, JS-only redirects).
+
+## Subagent-js: extracting typed data from MDX/JS pages
+
+`context-window.md` is the canonical example: the page exports a React component whose
+`EVENTS` array is the actual data structure we care about. `subagent-html` would convert
+the prose around it but lose the data. `subagent-js` parses the JS source:
+
+```ts
+// src/subagentmcp-sdk/tools/subagent-js.ts
+import { parse } from '@babel/parser';
+import { traverse } from '@babel/traverse';
+
+export interface JSReadOptions {
+  /** Named export to extract. e.g. 'EVENTS' from context-window.md */
+  exportName: string;
+  /** Zod schema to validate the extracted data against */
+  schema: z.ZodType;
+}
+
+export interface JSReadResult<T> {
+  url: string;
+  data: T;
+  sourceSha256: string;
+  fromCache: boolean;
+}
+
+/** Extracts a named export from an MDX/JS page and validates against the provided schema. */
+export const subagentJs: ContentReader<JSReadOptions, JSReadResult<unknown>>;
+```
+
+Worked example:
+
+```ts
+import { z } from 'zod';
+import { subagentJs } from '...tools/subagent-js';
+
+const EventSchema = z.object({
+  t: z.number(), kind: z.string(), label: z.string(),
+  tokens: z.number(), color: z.string(), vis: z.enum(['hidden','visible']),
+  desc: z.string(), link: z.string().nullable().optional(),
+});
+
+const result = await subagentJs.read('https://code.claude.com/docs/en/context-window.md', {
+  exportName: 'EVENTS',
+  schema: z.array(EventSchema),
+});
+
+if (result) {
+  for (const event of result.data) {
+    // event is fully typed; .label, .tokens, .desc all autocomplete
+  }
+}
+```
+
+This is the **right** way to read context-window.md, not a `WebFetch` that pulls the
+prose around the data and forces the LLM to re-extract it.
+
+## subagent-xml
+
+For Atom/RSS, sitemaps, OpenAPI/Swagger XML. Less common but worth typing for completeness.
+
+```ts
+// src/subagentmcp-sdk/tools/subagent-xml.ts
+import { parseString } from 'xml2js';
+
+export interface XMLReadOptions {
+  /** XPath-like selector to extract a sub-tree, or full document if omitted. */
+  selector?: string;
+  /** Zod schema for the extracted shape. */
+  schema?: z.ZodType;
+}
+```
+
+## subagent-md (passthrough)
+
+For raw markdown URLs (GitHub raw, docs `.md` URLs). Minimal processing:
+
+- Strip frontmatter into a separate `frontmatter` field
+- Normalize line endings to LF
+- Optionally strip code-block fences if `opts.unwrapCode` is set
+- Return both raw markdown body and parsed frontmatter
+
+## Migration plan
+
+| Existing usage | Replace with |
+|---|---|
+| `WebFetch(url, prompt)` for HTML pages | `subagentHtml.read(url)` + a separate prompt to the LLM |
+| `WebFetch` for `code.claude.com/docs/en/*.md` | `subagentMd.read(url)` |
+| Manual `curl ... \| sed/awk` for parsing GitHub README content | `subagentMd.read(url)` |
+| Reading `context-window.md` for the EVENTS array | `subagentJs.read(url, { exportName: 'EVENTS', schema })` |
+| `WebFetch` for sitemaps / RSS | `subagentXml.read(url, { schema })` |
+
+## Out of scope (intentionally)
+
+- **General-purpose web crawler** — we're not building Googlebot. Single-URL fetch with
+  optional 1-hop link-follow is the cap.
+- **Image / video fetching** — markdown only. Use `image-cache/` (Claude Code's own
+  caching) for visual content.
+- **JS execution beyond reading** — we extract data, not run user-side scripts.
+- **Authentication** — every reader is anonymous. Auth'd content goes through MCP servers
+  with proper credential handling.
+
+## Sources
+
+- Crawlee: https://crawlee.dev (MIT, Apify)
+- Mozilla Readability: https://github.com/mozilla/readability (Apache-2.0)
+- markdown-it: https://github.com/markdown-it/markdown-it (MIT)
+- bloom-filters npm: https://github.com/Callidon/bloom-filters (MIT)
+- @babel/parser for JS extraction: https://babeljs.io
+- xml2js: https://github.com/Leonidas-from-XIV/node-xml2js (MIT)
