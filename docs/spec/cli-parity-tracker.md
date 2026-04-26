@@ -86,7 +86,7 @@ When a per-skill spec PR lands (e.g. PR #45 for `productivity-cli-start`):
 | `system-design` | `/engineering:system-design` | **ported** | [`cli-skills/engineering-cli-system-design.md`](./cli-skills/engineering-cli-system-design.md) | upstream is design-collaboration; CLI is markdown-output-only | #51 (umbrella) |
 | `testing-strategy` | `/engineering:testing-strategy` | **ported** | [`cli-skills/engineering-cli-testing-strategy.md`](./cli-skills/engineering-cli-testing-strategy.md) | adds Sentry MCP integration for gap-identification | #51 (umbrella) |
 | `stack-check` | `/engineering:stack-check` | **ported** | [`cli-skills/engineering-cli-stack-check.md`](./cli-skills/engineering-cli-stack-check.md) | draft awaiting upstream survey; manifest-vs-lockfile drift hypothesis | #88 |
-| `architecture-review` | `/engineering:architecture-review` | **tbd** | (none) | n/a | #51 (umbrella) |
+| `architecture-review` | `/engineering:architecture-review` | **ported** | [`cli-skills/engineering-cli-architecture-review.md`](./cli-skills/engineering-cli-architecture-review.md) | draft awaiting upstream survey; 5-axis (scalability/security/maintainability/cost/team-fit) framework | #89 |
 | `incident-postmortem` | `/engineering:incident-postmortem` | **tbd** | (none) | n/a | #51 (umbrella) |
 
 > **Note:** the engineering plugin's full skill list isn't pinned yet —

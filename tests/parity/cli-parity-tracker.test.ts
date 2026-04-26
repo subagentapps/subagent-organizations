@@ -50,7 +50,7 @@ describe('parity tracker — derivation rules', () => {
     expect(deriveStatus('engineering', 'system-design')).toBe('ported');
     expect(deriveStatus('engineering', 'testing-strategy')).toBe('ported');
     expect(deriveStatus('engineering', 'stack-check')).toBe('ported');
-    expect(deriveStatus('engineering', 'architecture-review')).toBe('tbd');
+    expect(deriveStatus('engineering', 'architecture-review')).toBe('ported');
     expect(deriveStatus('engineering', 'incident-postmortem')).toBe('tbd');
   });
 });
