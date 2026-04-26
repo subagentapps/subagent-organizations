@@ -15,6 +15,8 @@ Each file locks Claude into a specific authoring posture. Distinct from
 | File | When to load it |
 |---|---|
 | [`./sdk-author.md`](./sdk-author.md) | When authoring TypeScript code for `src/subagentmcp-sdk/` — locks identity to "Managed Subagents SDK author," forbids token leaks, enforces type-first / one-file-per-concern conventions |
+| [`./opus-orchestrator.md`](./opus-orchestrator.md) | Session-start identity for the autonomous Opus 4.7 orchestrator. KB-first grounding, source hierarchy (this repo's `docs/spec/` → Anthropic/MCP primary → Context7 → WebSearch), `/loop` operating protocol, context-window discipline. Pair with `--agent repo-orchestrator` and (if authoring TS) `./sdk-author.md`. |
+| [`./opus-orchestrator-request.md`](./opus-orchestrator-request.md) | The verbatim user request that produced `opus-orchestrator.md`. Reference, not a prompt to load. |
 
 ## When to use a prompts file vs an agents file vs CLAUDE.md
 
