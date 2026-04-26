@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>.slider { width: 100%; }</style>
+<script>
+// Simulated 30k-token JS bloat the spec calls out.
+window.SLIDER_CONFIG = {
+  draggable: true,
+  autoplay: false,
+  // ... in real life, several KB of slider config + tracking + analytics
+};
+function init() { /* lots of code */ }
+</script>
+</head>
+<body>
+<header><nav><a href="/">Home</a></nav></header>
+<aside>Subscribe to our newsletter</aside>
+<main>
+  <article>
+    <h1>How we built Cowork</h1>
+    <p>The story of building a collaborative workspace.</p>
+    <h2>The vision</h2>
+    <p>We wanted to enable engineering teams to work better together.</p>
+  </article>
+</main>
+<footer>
+  <p>Cookies: we use them.</p>
+  <form><input type="email"><button>Subscribe</button></form>
+</footer>
+<script>tracker.start();</script>
+</body>
+</html>

@@ -123,6 +123,35 @@ The bloom filter is keyed by **content SHA-256** (not URL) so:
 
 ## markdown-it preprocessing
 
+**Implementation note (2026-04-26):** the original spec called out
+`markdown-it` (768KB unpacked + 6 transitive deps), `@mozilla/readability`
+(154KB), and `turndown` (192KB + `@mixmark-io/domino`). For the use cases
+that matter (Anthropic doc pages, blog posts, GitHub README HTML, sitemap
+content), a focused converter handling paragraphs / headings / links /
+lists / code / inline emphasis does the job at <300 LOC.
+
+`_html-to-markdown.ts` provides:
+
+- HTML tokenizer that handles void elements, mismatched tags, CDATA,
+  comments without throwing
+- Best-effort prose subtree extraction: prefers `<article>` over `<main>`
+  over `<body>` over root
+- Strip list (entire subtree dropped, content included): `script`, `style`,
+  `nav`, `footer`, `aside`, `header`, `form`, `iframe`, `noscript`, `svg`,
+  `button`, `select`, `textarea`
+- Markdown rendering: `<h1..h6>`, `<p>`, `<a>`, `<ul>/<ol>/<li>`, `<code>`,
+  `<pre><code class="language-X">`, `<strong>/<b>`, `<em>/<i>`, `<br>`,
+  `<hr>`, `<blockquote>`, `<img>` (link-only)
+- Entity decoding (`&amp;`, `&mdash;`, numeric `&#x2014;`)
+- Output truncation at byte boundary with `truncated: true` slice metadata
+
+Pages that need a real DOM (very loose markup, complex tables, JS-only
+shells) hit the **Crawlee fallback** in #27 — but the conversion still
+ends here, after the headless-browser pass renders into static HTML.
+
+The original spec's snippet stays below as the conceptual reference; the
+runtime is `_html-to-markdown.ts`.
+
 Configured to keep the bits Claude actually needs:
 
 ```ts

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Introducing contextual retrieval</title>
+  <meta charset="utf-8">
+  <script>console.log("tracker noise");</script>
+  <style>.brand { color: red; }</style>
+</head>
+<body>
+  <header>
+    <nav><a href="/">Anthropic</a> | <a href="/news">News</a></nav>
+  </header>
+  <article>
+    <h1>Introducing contextual retrieval</h1>
+    <p>Standard <strong>RAG</strong> pipelines lose important context when chunks are embedded in isolation.</p>
+    <p>We introduce a technique we call <em>contextual retrieval</em>, which prepends a chunk-specific summary before embedding.</p>
+    <h2>Results</h2>
+    <ul>
+      <li>BM25 alone: 5.7% retrieval failure</li>
+      <li>Contextual BM25 + embeddings: 1.9% retrieval failure</li>
+    </ul>
+    <h2>Implementation</h2>
+    <pre><code class="language-python">def contextualize(chunk, doc):
+    return prompt + chunk
+</code></pre>
+    <p>See the <a href="https://github.com/anthropics/anthropic-cookbook">cookbook</a> for end-to-end examples.</p>
+  </article>
+  <footer>© 2026 Anthropic</footer>
+</body>
+</html>
