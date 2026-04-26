@@ -154,6 +154,44 @@ retry.
 
 **Output**: a `DenseIndex` and `BM25Index` keyed by chunk ID.
 
+**Implementation notes (2026-04-26, closes #77):**
+
+*BM25 (`bm25.ts`):*
+- Pure-TS Okapi BM25 over a `bun:sqlite`-backed inverted index. Defaults
+  match Lucene/Elasticsearch: `k1=1.2`, `b=0.75`. Tokenization is the
+  naive lowercase + alphanumeric-split per the blog's "naive BM25
+  baseline" note — no stemming, no stopword removal.
+- Schema: `docs(chunkId, length)`, `postings(term, chunkId, tf)`,
+  `stats(key, value)`. The `stats` table tracks `doc_count` and
+  `sum_lengths` so `avgDocLength()` is O(1).
+- IDF formula: `log(1 + (N - df + 0.5)/(df + 0.5))` (BM25 plus-one variant —
+  guarantees non-negative scores even when a term appears in every doc).
+- Persistence: SQLite at `~/.cache/subagent-organizations/bm25.sqlite`
+  by default; tests use `:memory:`. Restart preserves the index.
+- Re-add semantics are idempotent: same `chunkId` replaces the prior
+  version, stats updated atomically.
+- The PostgreSQL `tsvector` alternative the spec mentions is a future
+  swap when the deployment matches AlloyDB's stack.
+
+*Embedder (`embedder.ts`):*
+- Voyage `voyage-3-large` via REST. No Voyage SDK dep (continues
+  iter-23/25/26/27/28/29/32/33/34 zero-dep precedent).
+- Persistence: JSONL at `~/.cache/subagent-organizations/embeddings.jsonl`
+  by default. One record per line: `{ chunkId, embedding }`. Tests use
+  `indexPath: null` for memory-only operation.
+- Cosine similarity ranked in-memory at query time. Sufficient for the
+  <10k chunk corpus the spec calls out; pgvector swap would be a future
+  scaling step.
+- **Fail-open mandatory**: missing `VOYAGE_API_KEY`, HTTP non-2xx, network
+  throw, malformed payload → `embed()` returns `null`; `DenseIndex.add()`
+  returns `false` (chunk not indexed dense-side); `DenseIndex.query()`
+  returns `[]` (BM25 carries that query). Same iter-24 / iter-33 / iter-34
+  precedent. The retriever's RRF fusion handles a one-sided result by
+  treating the missing index as "no contribution" — graceful degradation
+  to BM25-only retrieval.
+- `__addRaw()` test hook bypasses Voyage so ranking can be tested
+  deterministically without HTTP mocks for the embedding-generation path.
+
 ### 4. Retriever — `kb/retriever.ts`
 
 **Responsibility:** parallel-fetch top-N from each index for a query, fuse
