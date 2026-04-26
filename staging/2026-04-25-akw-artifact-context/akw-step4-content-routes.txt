@@ -1,0 +1,697 @@
+# Step 4 — Per-plugin pages, ADR rendering, changelog route
+
+Adds four new routes to the site. Keeps the same flat-dark aesthetic and teal
+accent. No new dependencies except a markdown renderer.
+
+New routes:
+
+| Path | Purpose |
+|---|---|
+| `/` | Dashboard (existing) |
+| `/plugins/:name` | Per-plugin landing page, templated from GitHub |
+| `/adr` + `/adr/:number` | ADR index + individual ADR view |
+| `/changelog` | Combined changelog across the 14 plugins |
+
+---
+
+## 1. Add a router
+
+Use `wouter` — 2kb, hook-based, composable. Install:
+
+```bash
+npm install wouter
+npm install -D @types/unist  # for markdown AST types later
+```
+
+Also add markdown rendering:
+
+```bash
+npm install marked dompurify
+npm install -D @types/marked @types/dompurify
+```
+
+`marked` is 30kb, zero deps. `DOMPurify` sanitizes HTML post-render.
+
+---
+
+## 2. `src/routes/index.tsx` — the router shell
+
+```typescript
+import { Route, Switch, Link } from 'wouter';
+import Dashboard from './Dashboard';
+import PluginPage from './PluginPage';
+import AdrIndex from './AdrIndex';
+import AdrPage from './AdrPage';
+import Changelog from './Changelog';
+import NotFound from './NotFound';
+
+export default function Router() {
+  return (
+    <Switch>
+      <Route path="/" component={Dashboard} />
+      <Route path="/plugins/:name" component={PluginPage} />
+      <Route path="/adr" component={AdrIndex} />
+      <Route path="/adr/:number" component={AdrPage} />
+      <Route path="/changelog" component={Changelog} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+```
+
+Update `src/App.tsx` to just render `<Router />` — move the existing dashboard
+into `src/routes/Dashboard.tsx`.
+
+---
+
+## 3. Pages Function: `/api/github-file`
+
+Shared function to fetch arbitrary Markdown from the kwpc repo.
+Create `functions/api/github-file.ts`:
+
+```typescript
+interface Env {
+  GITHUB_TOKEN: string;
+  AKW_CACHE: KVNamespace;
+}
+
+const CACHE_TTL = 300;
+
+export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
+  const url = new URL(request.url);
+  const path = url.searchParams.get('path');
+  const repo = url.searchParams.get('repo') || 'knowledge-work-plugins-cli';
+  const ref = url.searchParams.get('ref') || 'main';
+
+  if (!path) return new Response('missing path', { status: 400 });
+
+  // Security: only allow docs/, ADR, CHANGELOG, README paths
+  const allowed = /^(docs\/|CHANGELOG\.md$|README\.md$|[a-z0-9-]+\/README\.md$|[a-z0-9-]+\/CHANGELOG\.md$)/i;
+  if (!allowed.test(path)) return new Response('path not allowed', { status: 403 });
+
+  const cacheKey = `file:${repo}:${ref}:${path}`;
+  const cached = await env.AKW_CACHE.get(cacheKey);
+  if (cached) {
+    return new Response(cached, {
+      headers: { 'content-type': 'text/markdown', 'x-akw-cache': 'hit' },
+    });
+  }
+
+  const ghUrl = `https://api.github.com/repos/agentknowledgeworkers/${repo}/contents/${path}?ref=${ref}`;
+  const res = await fetch(ghUrl, {
+    headers: {
+      'authorization': `bearer ${env.GITHUB_TOKEN}`,
+      'accept': 'application/vnd.github.raw',
+      'user-agent': 'agentknowledgeworkers-tracker',
+    },
+  });
+
+  if (!res.ok) return new Response(`github: ${res.status}`, { status: res.status });
+
+  const body = await res.text();
+  await env.AKW_CACHE.put(cacheKey, body, { expirationTtl: CACHE_TTL });
+
+  return new Response(body, {
+    headers: { 'content-type': 'text/markdown', 'x-akw-cache': 'miss' },
+  });
+};
+```
+
+---
+
+## 4. Markdown renderer hook
+
+Create `src/lib/useMarkdown.ts`:
+
+```typescript
+import { useEffect, useState } from 'react';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+marked.setOptions({
+  gfm: true,
+  breaks: false,
+});
+
+export function useMarkdown(path: string, repo = 'knowledge-work-plugins-cli') {
+  const [html, setHtml] = useState<string>('');
+  const [raw, setRaw] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    const url = `/api/github-file?path=${encodeURIComponent(path)}&repo=${encodeURIComponent(repo)}`;
+    fetch(url)
+      .then((r) => r.ok ? r.text() : Promise.reject(r.statusText))
+      .then(async (md) => {
+        if (cancelled) return;
+        setRaw(md);
+        const rendered = await marked.parse(md);
+        setHtml(DOMPurify.sanitize(rendered as string));
+      })
+      .catch((e) => !cancelled && setError(String(e)))
+      .finally(() => !cancelled && setLoading(false));
+
+    return () => { cancelled = true; };
+  }, [path, repo]);
+
+  return { html, raw, loading, error };
+}
+```
+
+---
+
+## 5. Shared page shell
+
+Create `src/routes/_PageShell.tsx` — reuses top bar, applies the same black +
+teal styling. Includes subnav:
+
+```typescript
+import { Link, useLocation } from 'wouter';
+import { Github, ArrowUpRight } from 'lucide-react';
+
+const C = {
+  bg: '#000000',
+  surface: '#0A0A0A',
+  border: '#1A1A1A',
+  text: '#F5F2ED',
+  textDim: '#8F9997',
+  textMute: '#5A6462',
+  teal: '#0097A7',
+  tealHi: '#00BCD4',
+};
+
+const FONT = {
+  sans: `'Inter', -apple-system, sans-serif`,
+  mono: `'JetBrains Mono', ui-monospace, monospace`,
+};
+
+const NAV_ITEMS = [
+  { href: '/', label: 'Dashboard' },
+  { href: '/plugins/data-cli', label: 'Plugins', matchPrefix: '/plugins' },
+  { href: '/adr', label: 'ADRs', matchPrefix: '/adr' },
+  { href: '/changelog', label: 'Changelog' },
+];
+
+export default function PageShell({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: C.bg, color: C.text,
+      fontFamily: FONT.sans, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      <header style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 20px', borderBottom: `1px solid ${C.border}`, background: C.bg,
+        flexShrink: 0, gap: 20,
+      }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 6, background: C.teal,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: FONT.mono, fontSize: 12, fontWeight: 700, color: C.bg,
+          }}>a</div>
+          <span style={{ fontFamily: FONT.sans, fontSize: 14, fontWeight: 600, color: C.text }}>
+            agent<span style={{ color: C.textDim, fontWeight: 400 }}>knowledge</span>workers
+          </span>
+        </Link>
+
+        <nav style={{ display: 'flex', gap: 4 }}>
+          {NAV_ITEMS.map((item) => {
+            const active = item.matchPrefix
+              ? location.startsWith(item.matchPrefix)
+              : location === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                style={{
+                  padding: '6px 12px',
+                  fontFamily: FONT.mono,
+                  fontSize: 12,
+                  color: active ? C.text : C.textDim,
+                  textDecoration: 'none',
+                  borderBottom: `1px solid ${active ? C.teal : 'transparent'}`,
+                  transition: 'color 120ms, border-color 120ms',
+                }}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <a
+          href="https://github.com/agentknowledgeworkers/knowledge-work-plugins-cli"
+          target="_blank" rel="noreferrer"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 5, border: `1px solid ${C.border}`,
+            color: C.text, fontFamily: FONT.sans, fontSize: 12.5, textDecoration: 'none',
+          }}
+        >
+          <Github size={13} /> GitHub <ArrowUpRight size={12} />
+        </a>
+      </header>
+
+      <main style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {children}
+      </main>
+    </div>
+  );
+}
+```
+
+---
+
+## 6. `src/routes/PluginPage.tsx`
+
+```typescript
+import { useParams } from 'wouter';
+import PageShell from './_PageShell';
+import { useMarkdown } from '@/lib/useMarkdown';
+import { useProjectDetail } from '@/lib/useProjects';
+import MarkdownBody from '@/components/MarkdownBody';
+
+const C = { bg: '#000000', surface: '#0A0A0A', border: '#1A1A1A',
+            text: '#F5F2ED', textDim: '#8F9997', textMute: '#5A6462',
+            teal: '#0097A7', tealHi: '#00BCD4' };
+const FONT = { sans: `'Inter', sans-serif`, mono: `'JetBrains Mono', monospace` };
+
+export default function PluginPage() {
+  const params = useParams<{ name: string }>();
+  const name = params.name;
+  const { html, loading, error } = useMarkdown(`${name}/README.md`);
+  const { detail } = useProjectDetail(name);
+
+  return (
+    <PageShell>
+      <div style={{ maxWidth: 920, margin: '0 auto', padding: '40px 24px 80px' }}>
+        {/* Eyebrow + title */}
+        <div style={{
+          fontFamily: FONT.mono, fontSize: 11, color: C.textMute,
+          letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8,
+        }}>
+          Plugin · {inferTier(name)}
+        </div>
+        <h1 style={{
+          fontFamily: FONT.sans, fontSize: 32, fontWeight: 500,
+          color: C.text, margin: 0, letterSpacing: '-0.015em',
+        }}>
+          {name}
+        </h1>
+
+        {/* Status strip */}
+        {detail && (
+          <div style={{
+            marginTop: 16, display: 'flex', gap: 24,
+            padding: '16px 0', borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`,
+          }}>
+            <StatItem label="Milestones" value={detail.milestones.length} />
+            <StatItem label="Issues" value={detail.milestones.reduce((a, m) => a + m.issues.length, 0)} />
+            <StatItem label="Tests passing" value={countPassingTests(detail) + ' / ' + countTotalTests(detail)} />
+          </div>
+        )}
+
+        {/* README body */}
+        <div style={{ marginTop: 32 }}>
+          {loading && <div style={{ color: C.textMute, fontFamily: FONT.mono, fontSize: 13 }}>Loading README from GitHub…</div>}
+          {error && <div style={{ color: '#EF4444', fontFamily: FONT.mono, fontSize: 13 }}>Failed to load: {error}</div>}
+          {!loading && !error && <MarkdownBody html={html} />}
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+
+function StatItem({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div>
+      <div style={{ fontFamily: FONT.mono, fontSize: 10, color: C.textMute, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ fontFamily: FONT.mono, fontSize: 18, color: C.text, marginTop: 4 }}>{value}</div>
+    </div>
+  );
+}
+
+function inferTier(name: string): string {
+  const T1 = ['legal-cli', 'finance-cli', 'marketing-cli', 'operations-cli', 'human-resources-cli', 'customer-support-cli', 'sales-cli'];
+  const T3 = ['pdf-viewer-cli'];
+  if (T1.includes(name)) return 'T1';
+  if (T3.includes(name)) return 'T3';
+  return 'T2';
+}
+
+function countPassingTests(detail: any): number {
+  return detail.milestones.reduce((acc: number, m: any) =>
+    acc + m.issues.filter((i: any) => i.state === 'closed' && i.title.match(/^T\d: /)).length, 0);
+}
+
+function countTotalTests(detail: any): number {
+  return detail.milestones.reduce((acc: number, m: any) =>
+    acc + m.issues.filter((i: any) => i.title.match(/^T\d: /)).length, 0);
+}
+```
+
+---
+
+## 7. `src/components/MarkdownBody.tsx` — styled markdown output
+
+```typescript
+const C = { border: '#1A1A1A', text: '#F5F2ED', textDim: '#8F9997',
+            textMute: '#5A6462', teal: '#0097A7', tealHi: '#00BCD4',
+            surface: '#0A0A0A' };
+const FONT = { sans: `'Inter', sans-serif`, mono: `'JetBrains Mono', monospace` };
+
+export default function MarkdownBody({ html }: { html: string }) {
+  return (
+    <>
+      <style>{`
+        .md-body { font-family: ${FONT.sans}; font-size: 15px; line-height: 1.65; color: ${C.textDim}; }
+        .md-body h1, .md-body h2, .md-body h3, .md-body h4 { color: ${C.text}; font-weight: 500; letter-spacing: -0.01em; }
+        .md-body h1 { font-size: 28px; margin-top: 2em; margin-bottom: 0.6em; }
+        .md-body h2 { font-size: 22px; margin-top: 1.8em; margin-bottom: 0.5em; padding-bottom: 8px; border-bottom: 1px solid ${C.border}; }
+        .md-body h3 { font-size: 17px; margin-top: 1.5em; margin-bottom: 0.4em; }
+        .md-body p { margin: 0.9em 0; }
+        .md-body a { color: ${C.tealHi}; text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 120ms; }
+        .md-body a:hover { border-bottom-color: ${C.tealHi}; }
+        .md-body code { font-family: ${FONT.mono}; font-size: 0.88em; background: ${C.surface}; color: ${C.tealHi}; padding: 2px 6px; border-radius: 3px; }
+        .md-body pre { background: ${C.surface}; border: 1px solid ${C.border}; border-radius: 4px; padding: 16px; overflow-x: auto; font-family: ${FONT.mono}; font-size: 13px; line-height: 1.55; }
+        .md-body pre code { background: transparent; color: ${C.text}; padding: 0; }
+        .md-body ul, .md-body ol { padding-left: 24px; }
+        .md-body li { margin: 0.3em 0; }
+        .md-body blockquote { border-left: 2px solid ${C.teal}; margin: 1em 0; padding: 0 0 0 16px; color: ${C.textDim}; }
+        .md-body table { width: 100%; border-collapse: collapse; font-family: ${FONT.mono}; font-size: 13px; margin: 1.2em 0; }
+        .md-body th, .md-body td { padding: 8px 12px; border-bottom: 1px solid ${C.border}; text-align: left; }
+        .md-body th { color: ${C.textMute}; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; font-size: 11px; }
+        .md-body hr { border: 0; border-top: 1px solid ${C.border}; margin: 2em 0; }
+        .md-body img { max-width: 100%; }
+      `}</style>
+      <div className="md-body" dangerouslySetInnerHTML={{ __html: html }} />
+    </>
+  );
+}
+```
+
+---
+
+## 8. ADR index + page
+
+`src/routes/AdrIndex.tsx`:
+
+```typescript
+import { Link } from 'wouter';
+import PageShell from './_PageShell';
+
+const C = { bg: '#000000', border: '#1A1A1A', text: '#F5F2ED',
+            textDim: '#8F9997', textMute: '#5A6462', teal: '#0097A7', surface: '#0A0A0A' };
+const FONT = { sans: `'Inter', sans-serif`, mono: `'JetBrains Mono', monospace` };
+
+// Kept static; updates when new ADRs land. Automation could populate this from
+// a GitHub Action that writes src/data/adrs.json at build time.
+const ADRS = [
+  { number: '0001', title: 'release-please over changesets', status: 'Accepted', date: '2026-04-22' },
+  { number: '0002', title: 'GitHub Projects V2 as storage layer', status: 'Accepted', date: '2026-04-22' },
+  { number: '0003', title: 'Shared GraphQL schema package', status: 'Accepted', date: '2026-04-22' },
+  { number: '0004', title: 'Hybrid storage: CLAUDE.md + GitHub', status: 'Accepted', date: '2026-04-22' },
+  { number: '0005', title: 'Pin pattern and drift detection', status: 'Accepted', date: '2026-04-22' },
+  { number: '0006', title: 'Linked versions except schema', status: 'Accepted', date: '2026-04-22' },
+];
+
+export default function AdrIndex() {
+  return (
+    <PageShell>
+      <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 24px' }}>
+        <div style={{
+          fontFamily: FONT.mono, fontSize: 11, color: C.textMute,
+          letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8,
+        }}>
+          01 · Architectural Decision Records
+        </div>
+        <h1 style={{ fontFamily: FONT.sans, fontSize: 32, fontWeight: 500, color: C.text, margin: 0 }}>
+          Decisions
+        </h1>
+        <p style={{ fontFamily: FONT.sans, fontSize: 15, color: C.textDim, marginTop: 12, maxWidth: 640, lineHeight: 1.55 }}>
+          Every non-trivial decision is captured as an ADR. Accepted ADRs are immutable —
+          when a decision changes, a new ADR supersedes the old one.
+        </p>
+
+        <div style={{ marginTop: 32, border: `1px solid ${C.border}` }}>
+          {ADRS.map((adr, i) => (
+            <Link
+              key={adr.number}
+              href={`/adr/${adr.number}`}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '80px 1fr auto auto',
+                gap: 20,
+                padding: '14px 20px',
+                borderTop: i === 0 ? 'none' : `1px solid ${C.border}`,
+                background: 'transparent',
+                color: C.text,
+                textDecoration: 'none',
+                transition: 'background 120ms',
+                alignItems: 'baseline',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = C.surface)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >
+              <span style={{ fontFamily: FONT.mono, fontSize: 12, color: C.teal }}>{adr.number}</span>
+              <span style={{ fontFamily: FONT.sans, fontSize: 14 }}>{adr.title}</span>
+              <span style={{ fontFamily: FONT.mono, fontSize: 11, color: C.textMute }}>{adr.status}</span>
+              <span style={{ fontFamily: FONT.mono, fontSize: 11, color: C.textMute }}>{adr.date}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+```
+
+`src/routes/AdrPage.tsx`:
+
+```typescript
+import { useParams, Link } from 'wouter';
+import PageShell from './_PageShell';
+import MarkdownBody from '@/components/MarkdownBody';
+import { useMarkdown } from '@/lib/useMarkdown';
+
+const C = { text: '#F5F2ED', textDim: '#8F9997', textMute: '#5A6462', teal: '#0097A7' };
+const FONT = { sans: `'Inter', sans-serif`, mono: `'JetBrains Mono', monospace` };
+
+// Title mapping (keep synced with AdrIndex). Could be loaded from a manifest.
+const ADR_TITLES: Record<string, string> = {
+  '0001': 'release-please-not-changesets',
+  '0002': 'github-projects-as-storage',
+  '0003': 'shared-graphql-schema',
+  '0004': 'hybrid-storage-claudemd-plus-github',
+  '0005': 'pin-pattern-and-drift-detection',
+  '0006': 'linked-versions-except-schema',
+};
+
+export default function AdrPage() {
+  const { number } = useParams<{ number: string }>();
+  const slug = ADR_TITLES[number];
+  const { html, loading, error } = useMarkdown(`docs/adr/${number}-${slug}.md`);
+
+  return (
+    <PageShell>
+      <div style={{ maxWidth: 820, margin: '0 auto', padding: '40px 24px 80px' }}>
+        <Link href="/adr" style={{
+          fontFamily: FONT.mono, fontSize: 12, color: C.textMute,
+          textDecoration: 'none', display: 'inline-block', marginBottom: 24,
+        }}>
+          ← All ADRs
+        </Link>
+
+        {loading && <div style={{ color: C.textMute, fontFamily: FONT.mono }}>Loading…</div>}
+        {error && <div style={{ color: '#EF4444', fontFamily: FONT.mono }}>Failed: {error}</div>}
+        {!loading && !error && html && <MarkdownBody html={html} />}
+      </div>
+    </PageShell>
+  );
+}
+```
+
+---
+
+## 9. Changelog route
+
+`src/routes/Changelog.tsx`:
+
+```typescript
+import { useEffect, useState } from 'react';
+import PageShell from './_PageShell';
+
+const C = { border: '#1A1A1A', text: '#F5F2ED', textDim: '#8F9997',
+            textMute: '#5A6462', teal: '#0097A7', tealHi: '#00BCD4', surface: '#0A0A0A' };
+const FONT = { sans: `'Inter', sans-serif`, mono: `'JetBrains Mono', monospace` };
+
+type Release = {
+  tagName: string;
+  name: string;
+  publishedAt: string;
+  body: string;
+  url: string;
+  plugin: string;
+};
+
+export default function Changelog() {
+  const [releases, setReleases] = useState<Release[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/releases')
+      .then((r) => r.ok ? r.json() : Promise.reject(r.statusText))
+      .then((data) => setReleases(data.releases || []))
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <PageShell>
+      <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 24px 80px' }}>
+        <div style={{
+          fontFamily: FONT.mono, fontSize: 11, color: C.textMute,
+          letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8,
+        }}>
+          Changelog
+        </div>
+        <h1 style={{ fontFamily: FONT.sans, fontSize: 32, fontWeight: 500, color: C.text, margin: 0 }}>
+          Releases across the suite
+        </h1>
+        <p style={{ fontFamily: FONT.sans, fontSize: 15, color: C.textDim, marginTop: 12, maxWidth: 640, lineHeight: 1.55 }}>
+          Auto-generated from GitHub Releases. Every plugin publishes through
+          release-please. Section filters hide <code style={{ color: C.tealHi, fontFamily: FONT.mono }}>chore</code>, <code style={{ color: C.tealHi, fontFamily: FONT.mono }}>ci</code>, and other internal churn.
+        </p>
+
+        {loading && <div style={{ marginTop: 32, color: C.textMute, fontFamily: FONT.mono, fontSize: 13 }}>Loading releases…</div>}
+        {error && <div style={{ marginTop: 32, color: '#EF4444', fontFamily: FONT.mono, fontSize: 13 }}>Failed: {error}</div>}
+
+        <div style={{ marginTop: 32 }}>
+          {releases.map((r) => (
+            <div key={r.tagName} style={{
+              paddingBottom: 24, marginBottom: 24,
+              borderBottom: `1px solid ${C.border}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: FONT.mono, fontSize: 12, color: C.teal }}>{r.plugin}</span>
+                <span style={{ fontFamily: FONT.sans, fontSize: 20, color: C.text, fontWeight: 500 }}>{r.tagName}</span>
+                <span style={{ fontFamily: FONT.mono, fontSize: 11, color: C.textMute, marginLeft: 'auto' }}>
+                  {new Date(r.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                </span>
+              </div>
+              <pre style={{
+                marginTop: 12, padding: 16, background: C.surface,
+                border: `1px solid ${C.border}`, borderRadius: 4,
+                fontFamily: FONT.mono, fontSize: 13, lineHeight: 1.55,
+                color: C.textDim, whiteSpace: 'pre-wrap', overflowX: 'auto',
+              }}>{r.body}</pre>
+            </div>
+          ))}
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+```
+
+And the Pages Function `functions/api/releases.ts`:
+
+```typescript
+interface Env { GITHUB_TOKEN: string; AKW_CACHE: KVNamespace; }
+
+export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+  const cacheKey = 'releases:all';
+  const cached = await env.AKW_CACHE.get(cacheKey, 'json');
+  if (cached) return Response.json(cached, { headers: { 'x-akw-cache': 'hit' } });
+
+  const data = await fetch(
+    'https://api.github.com/graphql',
+    {
+      method: 'POST',
+      headers: {
+        'authorization': `bearer ${env.GITHUB_TOKEN}`,
+        'content-type': 'application/json',
+        'user-agent': 'agentknowledgeworkers-tracker',
+      },
+      body: JSON.stringify({
+        query: `{
+          repository(owner: "agentknowledgeworkers", name: "knowledge-work-plugins-cli") {
+            releases(first: 50, orderBy: {field: CREATED_AT, direction: DESC}) {
+              nodes { tagName name publishedAt description url }
+            }
+          }
+        }`,
+      }),
+    },
+  ).then((r) => r.json());
+
+  const releases = (data.data?.repository?.releases?.nodes || []).map((r: any) => ({
+    tagName: r.tagName,
+    name: r.name,
+    publishedAt: r.publishedAt,
+    body: r.description || '',
+    url: r.url,
+    plugin: (r.tagName.split('-v')[0] || 'unknown'),
+  }));
+
+  const payload = { releases, fetchedAt: new Date().toISOString() };
+  await env.AKW_CACHE.put(cacheKey, JSON.stringify(payload), { expirationTtl: 600 });
+
+  return Response.json(payload, { headers: { 'x-akw-cache': 'miss' } });
+};
+```
+
+---
+
+## 10. `NotFound` page
+
+`src/routes/NotFound.tsx`:
+
+```typescript
+import { Link } from 'wouter';
+import PageShell from './_PageShell';
+
+export default function NotFound() {
+  return (
+    <PageShell>
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', height: '70vh', textAlign: 'center',
+        fontFamily: `'Inter', sans-serif`, color: '#8F9997',
+      }}>
+        <div style={{
+          fontFamily: `'JetBrains Mono', monospace`, fontSize: 11,
+          color: '#5A6462', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12,
+        }}>404</div>
+        <div style={{ fontSize: 20, color: '#F5F2ED', marginBottom: 16 }}>Not found.</div>
+        <Link href="/" style={{ fontFamily: `'JetBrains Mono', monospace`, color: '#00BCD4', textDecoration: 'none' }}>
+          ← Back to dashboard
+        </Link>
+      </div>
+    </PageShell>
+  );
+}
+```
+
+---
+
+## 11. Smoke test checklist
+
+- [ ] `npm install wouter marked dompurify`
+- [ ] Move existing `App.tsx` content → `src/routes/Dashboard.tsx`
+- [ ] Update `App.tsx` to `<Router />`
+- [ ] Deploy Pages Function `github-file`
+- [ ] Visit `/plugins/data-cli` → README from kwpc repo renders
+- [ ] Visit `/adr` → list renders; click an entry → markdown renders
+- [ ] Visit `/changelog` → pulls GitHub releases
+- [ ] Verify cache headers: first request is `miss`, second is `hit`
+
+Step 4 delivered. Step 5 (private staging) next — the last artifact of this execution.

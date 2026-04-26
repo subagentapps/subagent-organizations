@@ -1,0 +1,614 @@
+# Step 3 — Wire the tracker to live GitHub data
+
+Three pieces:
+
+1. **Cloudflare Pages Function** at `/api/projects` — GraphQL proxy to GitHub
+2. **Workers KV cache** — 5-min TTL so we don't hit rate limits
+3. **React data layer** — `useProjects` hook, URL-synced selection, SWR-style cache, static JSON fallback
+
+Final shape: the dashboard loads instantly from a cached build-time JSON snapshot, then the client quietly fetches live data and swaps in without flicker.
+
+---
+
+## 1. Cloudflare Pages Function: `/api/projects`
+
+Create `functions/api/projects.ts` in the website repo.
+
+```typescript
+// functions/api/projects.ts
+// GET /api/projects                 → summary of all projects
+// GET /api/projects/:slug           → full milestone + issue + task tree
+//
+// Cached in Workers KV for 5 minutes. Falls through to GitHub GraphQL on cache miss.
+
+interface Env {
+  GITHUB_TOKEN: string;          // fine-grained PAT, read-only, scoped to agentknowledgeworkers org
+  AKW_CACHE: KVNamespace;        // bound in wrangler.toml
+  ENVIRONMENT: string;           // 'production' | 'staging' | 'preview'
+}
+
+const CACHE_TTL = 300;           // 5 minutes
+const GITHUB_GRAPHQL = 'https://api.github.com/graphql';
+
+const PROJECT_MAP: Record<string, { owner: string; repo: string; label?: string }> = {
+  'akw-site':                { owner: 'agentknowledgeworkers', repo: 'agentknowledgeworkers' },
+  'kwpc':                    { owner: 'agentknowledgeworkers', repo: 'knowledge-work-plugins-cli' },
+  'schema':                  { owner: 'agentknowledgeworkers', repo: 'knowledge-work-plugins-cli', label: 'area/schema' },
+  'platform-engineering':    { owner: 'agentknowledgeworkers', repo: 'knowledge-work-plugins-cli', label: 'area/platform-engineering' },
+  'productivity-cli':        { owner: 'agentknowledgeworkers', repo: 'knowledge-work-plugins-cli', label: 'area/productivity-cli' },
+  'product-management-cli':  { owner: 'agentknowledgeworkers', repo: 'knowledge-work-plugins-cli', label: 'area/product-management-cli' },
+  'data-cli':                { owner: 'agentknowledgeworkers', repo: 'knowledge-work-plugins-cli', label: 'area/data-cli' },
+  'it-admin':                { owner: 'agentknowledgeworkers', repo: 'knowledge-work-plugins-cli', label: 'area/it-admin' },
+};
+
+export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
+  const url = new URL(request.url);
+  const slug = url.pathname.replace(/^\/api\/projects\/?/, '') || 'summary';
+  const cacheKey = `projects:${slug}`;
+
+  // 1. Try cache
+  if (url.searchParams.get('fresh') !== '1') {
+    const cached = await env.AKW_CACHE.get(cacheKey, 'json');
+    if (cached) {
+      return json(cached, { 'cache-control': 'public, max-age=60', 'x-akw-cache': 'hit' });
+    }
+  }
+
+  // 2. Fetch live
+  try {
+    const data = slug === 'summary'
+      ? await fetchSummary(env)
+      : await fetchProjectDetail(slug, env);
+
+    if (data) {
+      await env.AKW_CACHE.put(cacheKey, JSON.stringify(data), { expirationTtl: CACHE_TTL });
+    }
+    return json(data, { 'cache-control': 'public, max-age=60', 'x-akw-cache': 'miss' });
+  } catch (err) {
+    // 3. Serve stale cache if upstream dies
+    const stale = await env.AKW_CACHE.get(cacheKey, 'json');
+    if (stale) return json(stale, { 'x-akw-cache': 'stale', 'x-akw-error': String(err) });
+    return json({ error: 'upstream unavailable', detail: String(err) }, { status: 503 });
+  }
+};
+
+function json(data: unknown, headers: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(data, null, 2), {
+    status: headers.status ? Number(headers.status) : 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      ...headers,
+    },
+  });
+}
+
+// ─── GitHub GraphQL ─────────────────────────────────────────────────────────
+
+async function gh(env: Env, query: string, variables: Record<string, unknown>) {
+  const res = await fetch(GITHUB_GRAPHQL, {
+    method: 'POST',
+    headers: {
+      'authorization': `bearer ${env.GITHUB_TOKEN}`,
+      'content-type': 'application/json',
+      'user-agent': 'agentknowledgeworkers-tracker',
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) throw new Error(`github: ${res.status} ${await res.text()}`);
+  const body = await res.json();
+  if (body.errors) throw new Error(`graphql: ${JSON.stringify(body.errors)}`);
+  return body.data;
+}
+
+async function fetchSummary(env: Env) {
+  const projects = Object.entries(PROJECT_MAP);
+  const results = await Promise.all(
+    projects.map(async ([id, cfg]) => {
+      const data = await gh(
+        env,
+        `query($owner: String!, $repo: String!) {
+          repository(owner: $owner, name: $repo) {
+            milestones(states: [OPEN, CLOSED], first: 50, orderBy: {field: NUMBER, direction: DESC}) {
+              totalCount
+              nodes {
+                number
+                state
+                issues { totalCount }
+                closedIssues: issues(states: [CLOSED]) { totalCount }
+              }
+            }
+            openIssues: issues(states: [OPEN], labels: ["migration"]) { totalCount }
+            closedIssues: issues(states: [CLOSED], labels: ["migration"]) { totalCount }
+          }
+        }`,
+        { owner: cfg.owner, repo: cfg.repo },
+      );
+
+      const milestones = data.repository?.milestones?.nodes || [];
+      const totalIssues =
+        (data.repository?.openIssues?.totalCount || 0) +
+        (data.repository?.closedIssues?.totalCount || 0);
+      const doneIssues = data.repository?.closedIssues?.totalCount || 0;
+
+      return {
+        id,
+        repo: `${cfg.owner}/${cfg.repo}`,
+        status: inferStatus(milestones, doneIssues, totalIssues),
+        summary: {
+          milestones: milestones.length,
+          issues: totalIssues,
+          tasks: totalIssues * 3, // approximation; tasks sourced separately in detail fetch
+          done: doneIssues,
+        },
+      };
+    }),
+  );
+
+  return { projects: results, fetchedAt: new Date().toISOString() };
+}
+
+async function fetchProjectDetail(slug: string, env: Env) {
+  const cfg = PROJECT_MAP[slug];
+  if (!cfg) return null;
+
+  const labelFilter = cfg.label ? `labels: ["${cfg.label}", "migration"]` : `labels: ["migration"]`;
+
+  const data = await gh(
+    env,
+    `query($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
+        milestones(states: [OPEN, CLOSED], first: 20, orderBy: {field: DUE_DATE, direction: ASC}) {
+          nodes {
+            id
+            number
+            title
+            state
+            dueOn
+            description
+            issues(first: 50, ${labelFilter}) {
+              nodes {
+                id
+                number
+                title
+                state
+                body
+                labels(first: 10) { nodes { name } }
+                pullRequests: timelineItems(first: 5, itemTypes: [CROSS_REFERENCED_EVENT]) {
+                  nodes {
+                    ... on CrossReferencedEvent {
+                      source {
+                        ... on PullRequest { number state url }
+                      }
+                    }
+                  }
+                }
+                subIssues: trackedIssues(first: 20) {
+                  nodes { id number title state }
+                }
+              }
+            }
+          }
+        }
+      }
+    }`,
+    { owner: cfg.owner, repo: cfg.repo },
+  );
+
+  const milestones = (data.repository?.milestones?.nodes || []).map(mapMilestone);
+  return { slug, milestones, fetchedAt: new Date().toISOString() };
+}
+
+function mapMilestone(m: any) {
+  const issues = (m.issues?.nodes || []).map(mapIssue);
+  const closedCount = issues.filter((i: any) => i.state === 'closed').length;
+  const pct = issues.length ? Math.round((closedCount / issues.length) * 100) : 0;
+  return {
+    id: `M${m.number}`,
+    number: m.number,
+    title: m.title,
+    dueOn: m.dueOn ? m.dueOn.split('T')[0] : null,
+    status: m.state === 'CLOSED' ? 'completed' : pct > 0 ? 'in_progress' : 'queued',
+    pct,
+    issues,
+  };
+}
+
+function mapIssue(i: any) {
+  const pr = i.pullRequests?.nodes
+    ?.map((n: any) => n.source)
+    ?.find((s: any) => s?.number);
+  const sprintLabel = i.labels?.nodes?.find((l: any) => l.name.startsWith('sprint/'))?.name;
+
+  return {
+    id: i.number,
+    title: i.title,
+    state: i.state === 'CLOSED' ? 'closed' : 'open',
+    pr: pr ? `#${pr.number}` : null,
+    prUrl: pr?.url || null,
+    sprint: sprintLabel ? sprintLabel.replace('sprint/', 'S') : '—',
+    // tasks come from sub-issues (GitHub task list linkage)
+    tasks: (i.subIssues?.nodes || []).map((s: any) => ({
+      id: `T-${String(s.number).padStart(4, '0')}`,
+      title: s.title,
+      status: s.state === 'CLOSED' ? 'completed' : 'in_progress',
+      tool: 'TaskCreate',
+      sprint: sprintLabel ? sprintLabel.replace('sprint/', 'S') : '—',
+    })),
+  };
+}
+
+function inferStatus(milestones: any[], done: number, total: number) {
+  if (total === 0) return 'queued';
+  const pct = done / total;
+  const hasBlocked = milestones.some((m: any) => m.state === 'OPEN' && m.issues.totalCount === 0);
+  if (hasBlocked) return 'at_risk';
+  return pct >= 0.5 ? 'on_track' : 'in_progress';
+}
+```
+
+### Wire it up in `wrangler.toml`
+
+```toml
+# Add to wrangler.toml (create the KV namespace first via:
+#   wrangler kv namespace create AKW_CACHE
+#   wrangler kv namespace create AKW_CACHE --preview
+# )
+
+[[kv_namespaces]]
+binding = "AKW_CACHE"
+id = "<production-id-from-wrangler-output>"
+preview_id = "<preview-id-from-wrangler-output>"
+```
+
+### GitHub token setup
+
+1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
+2. **Repository access**: all repositories in `agentknowledgeworkers` org
+3. **Permissions** (read-only): Contents, Issues, Metadata, Projects, Pull requests
+4. Copy the token
+5. In Cloudflare Pages → Settings → Environment variables → add `GITHUB_TOKEN` (encrypted) for both Production and Preview
+
+---
+
+## 2. Build-time static fallback
+
+Before the KV cache warms, the first visitor would hit cold upstream. Avoid this: generate a static JSON snapshot at build time and bundle it.
+
+Create `scripts/snapshot.mjs`:
+
+```javascript
+// scripts/snapshot.mjs
+// Run at build time. Fetches /api/projects summary + details and writes
+// src/data/snapshot.json, which is imported as the initial state.
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+const BASE = process.env.SNAPSHOT_SOURCE || 'https://agentknowledgeworkers.com';
+
+async function main() {
+  const projects = ['akw-site', 'kwpc', 'schema', 'platform-engineering',
+                    'productivity-cli', 'product-management-cli', 'data-cli', 'it-admin'];
+
+  const summary = await fetchJson(`${BASE}/api/projects`);
+  const details = {};
+  for (const slug of projects) {
+    try {
+      details[slug] = await fetchJson(`${BASE}/api/projects/${slug}`);
+    } catch (err) {
+      console.warn(`snapshot: skipped ${slug} — ${err.message}`);
+    }
+  }
+
+  const snapshot = {
+    generatedAt: new Date().toISOString(),
+    summary,
+    details,
+  };
+
+  const outPath = path.resolve('src/data/snapshot.json');
+  await fs.mkdir(path.dirname(outPath), { recursive: true });
+  await fs.writeFile(outPath, JSON.stringify(snapshot, null, 2));
+  console.log(`✓ wrote ${outPath}`);
+}
+
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url} → ${res.status}`);
+  return res.json();
+}
+
+main().catch((err) => { console.error(err); process.exit(1); });
+```
+
+Update `package.json`:
+
+```json
+{
+  "scripts": {
+    "dev": "vite",
+    "snapshot": "node scripts/snapshot.mjs",
+    "build": "npm run snapshot && tsc -b && vite build",
+    "build:offline": "tsc -b && vite build",
+    "preview": "vite preview"
+  }
+}
+```
+
+For the first build before `/api/projects` exists, run `npm run build:offline`
+and hand-craft `src/data/snapshot.json` to match the shape. After step 3 is
+deployed once, all subsequent builds regenerate it automatically.
+
+---
+
+## 3. React data layer
+
+Replace the hard-coded `PROJECTS` and `PROJECT_DETAIL` constants in `src/App.tsx` with a hook-based layer.
+
+Create `src/lib/useProjects.ts`:
+
+```typescript
+import { useEffect, useState } from 'react';
+import snapshot from '@/data/snapshot.json';
+
+type Project = {
+  id: string;
+  name: string;
+  repo: string;
+  description: string;
+  status: 'on_track' | 'at_risk' | 'blocked' | 'queued' | 'in_progress';
+  summary: { milestones: number; issues: number; tasks: number; done: number };
+};
+
+type ProjectDetail = {
+  slug: string;
+  milestones: Array<{
+    id: string;
+    number: number;
+    title: string;
+    dueOn: string | null;
+    status: string;
+    pct: number;
+    issues: Array<{
+      id: number;
+      title: string;
+      state: 'open' | 'closed';
+      pr: string | null;
+      prUrl: string | null;
+      sprint: string;
+      tasks: Array<{ id: string; title: string; status: string; tool: string; sprint: string }>;
+    }>;
+  }>;
+};
+
+// Static descriptors — name, description, etc. don't live in GitHub
+const PROJECT_META: Record<string, { name: string; description: string }> = {
+  'akw-site': {
+    name: 'agentknowledgeworkers.com',
+    description: 'The marketing site, dogfooding kwpc. Progress here is driven by milestones in knowledge-work-plugins-cli.',
+  },
+  'kwpc': {
+    name: 'kwpc migration',
+    description: 'Port the knowledge-work plugin suite to Claude Code CLI. 14 plugins, 8 acceptance tests each.',
+  },
+  'schema': { name: 'packages/schema', description: 'Shared GraphQL schema + curl client.' },
+  'platform-engineering': { name: 'platform-engineering', description: '/skill-creator, /plugin-customizer, /stack-check.' },
+  'productivity-cli': { name: 'productivity-cli', description: 'Tasks, memory, coordination. Dogfooded.' },
+  'product-management-cli': { name: 'product-management-cli', description: 'Spec drafting, sprint-planning, updates.' },
+  'data-cli': { name: 'data-cli', description: 'Terminal data analyst. DuckDB-first.' },
+  'it-admin': { name: 'it-admin', description: 'ant admin * wrapper.' },
+};
+
+export function useProjects() {
+  const [projects, setProjects] = useState<Project[]>(() => hydrateSummary(snapshot.summary));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch('/api/projects')
+      .then((r) => r.ok ? r.json() : Promise.reject(r.statusText))
+      .then((fresh) => { if (!cancelled) setProjects(hydrateSummary(fresh)); })
+      .catch((e) => { if (!cancelled) setError(String(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  return { projects, loading, error };
+}
+
+export function useProjectDetail(slug: string) {
+  const [detail, setDetail] = useState<ProjectDetail | null>(
+    () => (snapshot.details as any)[slug] || null,
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/projects/${slug}`)
+      .then((r) => r.ok ? r.json() : Promise.reject(r.statusText))
+      .then((fresh) => { if (!cancelled) setDetail(fresh); })
+      .catch((e) => { if (!cancelled) setError(String(e)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  return { detail, loading, error };
+}
+
+function hydrateSummary(raw: any): Project[] {
+  const items = raw?.projects || [];
+  return items.map((p: any) => ({
+    ...PROJECT_META[p.id],
+    id: p.id,
+    repo: p.repo,
+    status: p.status,
+    summary: p.summary,
+  }));
+}
+```
+
+---
+
+## 4. URL-synced selection
+
+Create `src/lib/useUrlSelection.ts`:
+
+```typescript
+import { useEffect, useState } from 'react';
+
+type Selection =
+  | { kind: 'project' }
+  | { kind: 'milestone'; id: string }
+  | { kind: 'issue'; id: number }
+  | { kind: 'task'; id: string };
+
+export function useUrlSelection(defaultProject: string): {
+  projectId: string;
+  selection: Selection;
+  setProject: (id: string) => void;
+  setSelection: (s: Selection) => void;
+} {
+  const parse = () => {
+    const p = new URLSearchParams(window.location.search);
+    const projectId = p.get('project') || defaultProject;
+    const sel = p.get('selection');
+    let selection: Selection = { kind: 'project' };
+    if (sel) {
+      const [kind, id] = sel.split(':');
+      if (kind === 'milestone' || kind === 'task') selection = { kind, id } as any;
+      else if (kind === 'issue') selection = { kind, id: Number(id) };
+    }
+    return { projectId, selection };
+  };
+
+  const [state, setState] = useState(parse);
+
+  useEffect(() => {
+    const onPop = () => setState(parse());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const push = (projectId: string, selection: Selection) => {
+    const p = new URLSearchParams();
+    p.set('project', projectId);
+    if (selection.kind !== 'project') {
+      p.set('selection', `${selection.kind}:${'id' in selection ? selection.id : ''}`);
+    }
+    const url = `${window.location.pathname}?${p.toString()}`;
+    window.history.pushState({}, '', url);
+    setState({ projectId, selection });
+  };
+
+  return {
+    projectId: state.projectId,
+    selection: state.selection,
+    setProject: (id) => push(id, { kind: 'milestone', id: 'M1' }),
+    setSelection: (s) => push(state.projectId, s),
+  };
+}
+```
+
+---
+
+## 5. Integration points in `src/App.tsx`
+
+Replace the hard-coded constants and the default state hooks with these three lines:
+
+```typescript
+// Old:
+// const PROJECTS = [...]
+// const PROJECT_DETAIL = {...}
+// const [selectedProjectId, setSelectedProjectId] = useState("akw-site");
+// const [selection, setSelection] = useState({ kind: "milestone", id: "M1" });
+
+// New:
+import { useProjects, useProjectDetail } from '@/lib/useProjects';
+import { useUrlSelection } from '@/lib/useUrlSelection';
+
+// Inside App():
+const { projects } = useProjects();
+const { projectId, selection, setProject, setSelection } = useUrlSelection('akw-site');
+const project = projects.find((p) => p.id === projectId) || projects[0];
+const { detail } = useProjectDetail(projectId);
+```
+
+The rest of `App.tsx` stays the same — props flow to the existing components unchanged.
+
+---
+
+## 6. Mapping tasks to Claude Code
+
+Tasks on the tracker correspond to canonical Claude Code `TaskCreate` entries.
+Bridge: a bash script that runs `claude tasks list --json` and posts results
+as sub-issues on the parent GitHub issue.
+
+Create `scripts/sync-tasks.sh` in the kwpc repo:
+
+```bash
+#!/usr/bin/env bash
+# Sync Claude Code TaskList to GitHub sub-issues for the current branch's parent issue.
+# Usage: sync-tasks.sh <parent-issue-number>
+
+set -euo pipefail
+: "${1:?parent issue number required}"
+PARENT="$1"
+
+# Pull current session's tasks
+tasks_json=$(claude tasks list --json 2>/dev/null || echo '[]')
+[[ "$tasks_json" == "[]" ]] && { echo "no tasks in current session"; exit 0; }
+
+echo "$tasks_json" | jq -c '.[]' | while read -r task; do
+  title=$(echo "$task" | jq -r '.title')
+  status=$(echo "$task" | jq -r '.status')
+  task_id=$(echo "$task" | jq -r '.id')
+
+  # Check if sub-issue already exists
+  existing=$(gh issue list --search "\"$title\" in:title" --state all --json number \
+    --jq '.[0].number // empty')
+
+  if [[ -z "$existing" ]]; then
+    # Create sub-issue linked to parent
+    issue_num=$(gh issue create \
+      --title "$title" \
+      --body "Task from Claude Code session. Parent: #$PARENT\n\nTask ID: \`$task_id\`" \
+      --label "migration,task" \
+      --json number --jq .number)
+    gh api -X POST "/repos/{owner}/{repo}/issues/$PARENT/sub_issues" \
+      -f sub_issue_id="$issue_num" > /dev/null
+    echo "✓ created sub-issue #$issue_num for task $task_id"
+  fi
+
+  # Close if Claude marked it completed
+  if [[ "$status" == "completed" ]]; then
+    gh issue close "${existing:-$issue_num}" --comment "Closed by Claude Code: $task_id" 2>/dev/null || true
+  fi
+done
+```
+
+Engineers run this from their active branch when they want to sync:
+```bash
+./scripts/sync-tasks.sh 102   # syncs current TaskList to sub-issues of issue #102
+```
+
+Over time this gets wrapped by `productivity-cli /sync-tasks` so engineers don't
+invoke bash directly.
+
+---
+
+## Smoke test checklist
+
+- [ ] `wrangler kv namespace create AKW_CACHE` + add to `wrangler.toml`
+- [ ] Create fine-grained GitHub PAT, add as `GITHUB_TOKEN` secret in CF Pages
+- [ ] `functions/api/projects.ts` in repo → deploy → `curl https://agentknowledgeworkers.com/api/projects`
+- [ ] Confirm `x-akw-cache: miss` on first call, `hit` on second
+- [ ] Run `npm run snapshot` locally, verify `src/data/snapshot.json` generated
+- [ ] Replace hard-coded constants in `App.tsx` with hooks
+- [ ] Verify URL updates on selection: `?project=kwpc&selection=issue:102`
+- [ ] Copy URL → paste in new tab → correct state hydrates
+
+Step 3 delivered. Step 4 next.

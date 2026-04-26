@@ -1,0 +1,329 @@
+# agentknowledgeworkers.com — project scaffold
+
+Drop these files into an empty `agentknowledgeworkers/agentknowledgeworkers` repo.
+After `npm install` you get the exact dashboard artifact running locally via Vite.
+
+## Directory layout
+
+```
+agentknowledgeworkers/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml
+├── public/
+│   └── favicon.svg
+├── src/
+│   ├── App.tsx                  ← paste the dashboard artifact here (see notes)
+│   ├── main.tsx
+│   ├── vite-env.d.ts
+│   └── components/              ← (split App.tsx into these over time)
+├── functions/                   ← Cloudflare Pages Functions (step 3 work)
+│   └── .gitkeep
+├── .gitignore
+├── .nvmrc
+├── index.html
+├── package.json
+├── tsconfig.json
+├── tsconfig.node.json
+├── vite.config.ts
+├── wrangler.toml
+├── LICENSE
+└── README.md
+```
+
+---
+
+## package.json
+
+```json
+{
+  "name": "agentknowledgeworkers",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Agent Knowledge Workers — landing page + live project tracker dogfooded from knowledge-work-plugins-cli",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.tsx",
+    "deploy": "wrangler pages deploy dist --project-name=agentknowledgeworkers"
+  },
+  "dependencies": {
+    "lucide-react": "^0.383.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "wrangler": "^3.80.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+```
+
+---
+
+## vite.config.ts
+
+```typescript
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'node:path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  build: {
+    target: 'es2022',
+    outDir: 'dist',
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          icons: ['lucide-react'],
+        },
+      },
+    },
+  },
+  server: {
+    port: 5173,
+    strictPort: false,
+  },
+});
+```
+
+---
+
+## tsconfig.json
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+
+---
+
+## tsconfig.node.json
+
+```json
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true
+  },
+  "include": ["vite.config.ts"]
+}
+```
+
+---
+
+## index.html
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <title>Agent Knowledge Workers — knowledge-work-plugins-cli</title>
+    <meta
+      name="description"
+      content="Terminal-native plugins for Claude Code. Building agentknowledgeworkers.com by dogfooding knowledge-work-plugins-cli."
+    />
+    <meta property="og:title" content="Agent Knowledge Workers" />
+    <meta property="og:description" content="Live project tracker. Milestones drive deployments." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://agentknowledgeworkers.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body style="margin: 0; background: #000; color: #F5F2ED;">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+---
+
+## src/main.tsx
+
+```typescript
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
+```
+
+---
+
+## src/vite-env.d.ts
+
+```typescript
+/// <reference types="vite/client" />
+```
+
+---
+
+## src/App.tsx
+
+Paste the full dashboard artifact here. Two small adjustments for the real project:
+
+1. Change the first line from `import { useState, useMemo, useEffect, useRef } from "react";` to the same — it already works.
+2. Remove the inline `@import url('https://fonts.googleapis.com/...')` block and move font loading to `index.html` for proper preloading. Replace with:
+
+```html
+<!-- add to <head> in index.html -->
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+  rel="stylesheet"
+/>
+```
+
+The rest of the artifact works as-is. (Next deliverable after the scaffold lands: split App.tsx into `components/` by concern — nav, tree, detail panel, field.)
+
+---
+
+## public/favicon.svg
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#0097A7"/>
+  <text x="16" y="22" font-family="JetBrains Mono, monospace" font-size="18" font-weight="700" fill="#000" text-anchor="middle">a</text>
+</svg>
+```
+
+---
+
+## .gitignore
+
+```
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.env
+.env.local
+.env.*.local
+.wrangler
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.log
+```
+
+---
+
+## .nvmrc
+
+```
+20
+```
+
+---
+
+## LICENSE
+
+```
+Apache License 2.0 — standard header, replace [yyyy] with 2026 and [name of copyright owner] with Agent Knowledge Workers
+```
+
+---
+
+## README.md
+
+```markdown
+# agentknowledgeworkers.com
+
+Landing page and live project tracker for Agent Knowledge Workers. Dogfoods
+[knowledge-work-plugins-cli](https://github.com/agentknowledgeworkers/knowledge-work-plugins-cli) —
+every milestone in kwpc drives progress shown on this site.
+
+## Stack
+
+- **Vite 6** + **React 19** + **TypeScript**
+- **Cloudflare Pages** (hosting + edge functions)
+- **lucide-react** (icons)
+- No runtime CSS framework — design tokens in `src/App.tsx`
+
+## Local dev
+
+```bash
+nvm use           # Node 20
+npm install
+npm run dev       # http://localhost:5173
+```
+
+## Deploy
+
+Merge to `main`. GitHub Actions builds and deploys to Cloudflare Pages.
+Manual deploy: `npm run build && npm run deploy`.
+
+## Structure
+
+- `src/App.tsx` — dashboard (to be split into `components/`)
+- `functions/` — Cloudflare Pages Functions (GraphQL proxy to GitHub, coming soon)
+- `.github/workflows/deploy.yml` — CI/CD
+```
+
+---
+
+## How to use this scaffold
+
+```bash
+gh repo create agentknowledgeworkers/agentknowledgeworkers --public --license apache-2.0
+cd agentknowledgeworkers
+# paste each file above into its path
+npm install
+npm run dev
+# ✓ opens http://localhost:5173 with the dashboard
+```
+
+Next artifact in the queue: **`wrangler.toml` + Cloudflare Pages setup + GitHub Actions deploy workflow**.

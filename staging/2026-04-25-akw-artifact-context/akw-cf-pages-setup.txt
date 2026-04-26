@@ -1,0 +1,211 @@
+# Cloudflare Pages deployment for agentknowledgeworkers.com
+
+Two options. Use **Option A** for simplicity (Cloudflare pulls from GitHub
+directly). Use **Option B** if you want GitHub Actions to be the source of truth
+for deploys (better for gates, preview auth, and custom build pipelines).
+
+Recommended: **Option B**. Consistent with how we'll deploy the kwpc repo
+plugins to npm — same pattern, one mental model.
+
+---
+
+## One-time Cloudflare setup
+
+1. Log in to Cloudflare → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+2. Pick the `agentknowledgeworkers/agentknowledgeworkers` repo
+3. Configure build:
+   - **Framework preset:** `Vite`
+   - **Build command:** `npm run build`
+   - **Build output directory:** `dist`
+   - **Root directory:** `/`
+   - **Environment variables:** `NODE_VERSION = 20`
+4. Save → wait for first build → grab the `.pages.dev` URL
+5. Add custom domain: **Custom domains** → `agentknowledgeworkers.com` and `www.agentknowledgeworkers.com` → follow DNS instructions
+
+**If Option B (GitHub Actions)**: disable the Cloudflare auto-deploy from Git
+after the first deploy. Settings → Builds & deployments → uncheck
+"Automatic deployments." We'll drive it from Actions instead.
+
+---
+
+## wrangler.toml
+
+```toml
+name = "agentknowledgeworkers"
+compatibility_date = "2026-04-22"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./dist"
+
+# KV namespace for the GitHub data cache (provisioned in step 3 of the queue).
+# For now, leave commented. Uncomment + fill in after running:
+#   wrangler kv namespace create AKW_CACHE
+# [[kv_namespaces]]
+# binding = "AKW_CACHE"
+# id = "<<paste-id-from-wrangler-output>>"
+
+[vars]
+ENVIRONMENT = "production"
+
+[env.preview.vars]
+ENVIRONMENT = "preview"
+```
+
+---
+
+## .github/workflows/deploy.yml
+
+```yaml
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      deployment-url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc -b --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >
+            pages deploy dist
+            --project-name=agentknowledgeworkers
+            --branch=${{ github.head_ref || github.ref_name }}
+            --commit-dirty=true
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${{ steps.deploy.outputs.deployment-url }}`;
+            const body = `✨ Preview deployed: ${url}`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.startsWith('✨ Preview deployed'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+```
+
+---
+
+## GitHub repo secrets to add
+
+Settings → Secrets and variables → Actions → New repository secret:
+
+| Secret | How to get it |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template → restrict to account + zone |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard right sidebar on any zone page |
+
+---
+
+## DNS setup
+
+In Cloudflare DNS for `agentknowledgeworkers.com`:
+
+| Type | Name | Content | Proxy |
+|---|---|---|---|
+| CNAME | `@` | `agentknowledgeworkers.pages.dev` | Proxied |
+| CNAME | `www` | `agentknowledgeworkers.pages.dev` | Proxied |
+
+Cloudflare Pages → Custom domains → verify both show "Active."
+
+---
+
+## Preview deploys
+
+Every PR gets a preview URL posted as a PR comment. The URL persists for the
+life of the PR and updates on each push. Merging to `main` deploys to
+production.
+
+---
+
+## First deploy checklist
+
+- [ ] `gh repo create agentknowledgeworkers/agentknowledgeworkers --public`
+- [ ] Paste scaffold files (previous artifact) into local clone
+- [ ] `git add . && git commit -m "feat: initial scaffold" && git push`
+- [ ] Cloudflare Pages: connect repo, first build succeeds from CF-driven deploy
+- [ ] Grab `.pages.dev` URL, confirm dashboard renders
+- [ ] Disable CF auto-deploy (Settings → Builds & deployments)
+- [ ] Add `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets to GitHub
+- [ ] Paste `.github/workflows/deploy.yml` → push → Actions tab shows the build
+- [ ] Confirm GitHub Actions deploy hits the same `.pages.dev` URL
+- [ ] Add custom domain `agentknowledgeworkers.com` → update DNS
+- [ ] Archive the current static HTML site (keep a commit ref for history)
+- [ ] SSL: confirm Cloudflare Universal SSL is on (default; usually minutes)
+
+---
+
+## Commit conventions for this repo
+
+Same as kwpc — Conventional Commits, scoped:
+
+- `feat(tracker): add sprint swim-lane toggle`
+- `fix(field): braille field flickers on resize`
+- `chore(deploy): bump wrangler action`
+- `docs(readme): document local dev flow`
+
+Scopes we'll use:
+- `tracker` — the main dashboard
+- `field` — the Braille backdrop animation
+- `api` — Cloudflare Functions
+- `deploy` — CI/CD
+- `docs` — content
+- `plugins` — per-plugin subpages
+- `adr` — architectural decision records
+
+Next artifact in the queue: **kwpc repo bootstrap — ADR 0001–0006 filled in from the migration plan**.

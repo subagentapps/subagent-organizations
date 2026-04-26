@@ -59,6 +59,14 @@ TypeScript reference catalog modeled after the Claude Agent SDK's primitive syst
     `rg`, `fd`, `bfs`, `ugrep`. On native macOS/Linux Claude Code builds, `bfs` and
     `ugrep` are embedded. **Prefer Bash over Grep/Glob for new work.**
 
+12. **Staging convention** (per `staging/README.md`): when the user hands us a
+    large external input (sibling project dirs, downloads, multi-part directives),
+    `cp` it into `staging/<YYYY-MM-DD>-<topic>/` first with a `PROVENANCE.md`,
+    then promote selectively into permanent homes (`docs/spec/`, `src/`, etc.)
+    with project-naming renames applied (e.g. `agentknowledgeworkers` →
+    `subagent-organizations`). Never read a staged file in full; use `wc -l`,
+    `head`, `grep` to scope reads. Staging copies stay frozen as audit trail.
+
 ## Repo layout (current state, post-PR-#3 merge)
 
 ```

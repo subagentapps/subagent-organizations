@@ -1,0 +1,714 @@
+# kwpc — bootstrap + CI/CD
+
+Four files that materialize the migration plan in GitHub and run it:
+
+1. `scripts/bootstrap-migration.sh` — creates 14 milestones + 112 test issues + 14 tracking issues in one command
+2. `.github/workflows/acceptance-tests.yml` — runs the 8 tests per plugin on PR
+3. `.github/workflows/pin-freshness.yml` — weekly drift check, opens issues
+4. `.github/workflows/release-please.yml` — opens release PRs, publishes to npm
+
+Prerequisites:
+- `gh` CLI authenticated (`gh auth login`)
+- `jq` installed
+- The Project V2 board `kwpc-migration` created (one-time, in GitHub UI)
+- Repo secret `NPM_TOKEN` set to an `@agentknowledgeworkers`-scoped npm token
+
+---
+
+## scripts/bootstrap-migration.sh
+
+```bash
+#!/usr/bin/env bash
+# One-shot setup of all 14 migration milestones, 112 test issues, 14 tracking issues.
+# Idempotent: skips entities that already exist. Safe to re-run.
+#
+# Usage:
+#   export KWPC_REPO_OWNER=agentknowledgeworkers
+#   export KWPC_REPO_NAME=knowledge-work-plugins-cli
+#   export KWPC_PROJECT_NUMBER=1
+#   ./scripts/bootstrap-migration.sh
+
+set -euo pipefail
+
+: "${KWPC_REPO_OWNER:?must be set}"
+: "${KWPC_REPO_NAME:?must be set}"
+: "${KWPC_PROJECT_NUMBER:?must be set}"
+
+REPO="$KWPC_REPO_OWNER/$KWPC_REPO_NAME"
+
+# plugin:tier:due_date — mirrors the migration plan §6 wave ordering
+PLUGINS=(
+  "data-cli:T2:2026-05-03"               # Wave 0
+  "platform-engineering:T2:2026-05-03"   # Wave 0
+  "it-admin:T2:2026-05-03"               # Wave 0
+  "productivity-cli:T2:2026-05-24"       # Wave 1
+  "product-management-cli:T2:2026-05-24" # Wave 1
+  "legal-cli:T1:2026-06-14"              # Wave 2
+  "finance-cli:T1:2026-06-14"            # Wave 2
+  "marketing-cli:T1:2026-06-14"          # Wave 2
+  "operations-cli:T1:2026-06-14"         # Wave 2
+  "human-resources-cli:T1:2026-06-14"    # Wave 2
+  "customer-support-cli:T1:2026-06-14"   # Wave 2
+  "sales-cli:T1:2026-06-14"              # Wave 2
+  "engineering-cli:T2:2026-07-05"        # Wave 3
+  "design-cli:T2:2026-07-05"             # Wave 3
+  "enterprise-search-cli:T2:2026-07-05"  # Wave 3
+  "pdf-viewer-cli:T3:2026-07-26"         # Wave 4
+)
+
+# The 8 canonical acceptance tests
+TEST_TITLES=(
+  "T1: manifest validity"
+  "T2: skill frontmatter lints clean"
+  "T3: command frontmatter lints clean"
+  "T4: MCP config reachable"
+  "T5: skills fire on trigger phrases"
+  "T6: commands complete on fixtures"
+  "T7: GraphQL round-trip"
+  "T8: docs complete"
+)
+
+# Plugins that write to GitHub and thus need T7
+WRITES_TO_GITHUB=("productivity-cli" "product-management-cli" "platform-engineering" "it-admin")
+
+echo "Bootstrapping migration in $REPO..."
+echo
+
+# Sanity check: labels exist
+ensure_label() {
+  local name="$1" color="$2" desc="$3"
+  if ! gh label list --repo "$REPO" --json name -q '.[].name' | grep -qx "$name"; then
+    gh label create "$name" --repo "$REPO" --color "$color" --description "$desc" > /dev/null
+    echo "  ✓ created label: $name"
+  fi
+}
+
+echo "Ensuring labels..."
+ensure_label "migration"        "0097A7" "Plugin port work"
+ensure_label "acceptance-test"  "00BCD4" "One of the 8 canonical tests"
+ensure_label "tracking"         "4DD0E1" "Parent tracker issue for a milestone"
+ensure_label "pin-drift"        "F59E0B" "Version pin diverged from upstream"
+ensure_label "severity/high"    "EF4444" "Breaking / major bump"
+ensure_label "severity/medium"  "F59E0B" "Minor bump"
+ensure_label "severity/low"     "6B7280" "Patch bump"
+for entry in "${PLUGINS[@]}"; do
+  IFS=':' read -r plugin _ _ <<< "$entry"
+  ensure_label "area/$plugin" "14B8A6" "Work on the $plugin plugin"
+done
+for i in 1 2 3 4 5 6 7 8; do
+  ensure_label "test/$i" "00BCD4" "Acceptance test T$i"
+done
+echo
+
+# Process each plugin
+for entry in "${PLUGINS[@]}"; do
+  IFS=':' read -r plugin tier due <<< "$entry"
+  milestone_title="Plugin: $plugin"
+
+  echo "── $plugin ($tier, due $due)"
+
+  # Milestone
+  existing_milestone=$(gh api "repos/$REPO/milestones" --jq \
+    ".[] | select(.title == \"$milestone_title\") | .number" 2>/dev/null || echo "")
+
+  if [[ -n "$existing_milestone" ]]; then
+    echo "  • milestone #$existing_milestone already exists — skipping"
+    milestone_number="$existing_milestone"
+  else
+    milestone_number=$(gh api "repos/$REPO/milestones" \
+      --method POST \
+      -f title="$milestone_title" \
+      -f description="Migration of the $plugin plugin to CLI. Closes when all 8 acceptance tests pass." \
+      -f due_on="${due}T23:59:59Z" \
+      --jq '.number')
+    echo "  ✓ created milestone #$milestone_number"
+  fi
+
+  # 8 acceptance test issues
+  test_issue_refs=()
+  for i in "${!TEST_TITLES[@]}"; do
+    test_num=$((i + 1))
+    test_title="[$plugin] ${TEST_TITLES[$i]}"
+
+    # T7 is N/A for plugins that don't write to GitHub
+    needs_t7=false
+    for w in "${WRITES_TO_GITHUB[@]}"; do
+      [[ "$w" == "$plugin" ]] && needs_t7=true
+    done
+    if [[ "$test_num" == "7" && "$needs_t7" == "false" ]]; then
+      test_issue_refs+=("N/A")
+      continue
+    fi
+
+    existing_issue=$(gh issue list --repo "$REPO" \
+      --milestone "$milestone_title" \
+      --search "\"${TEST_TITLES[$i]}\" in:title" \
+      --state all --json number,title \
+      --jq ".[] | select(.title == \"$test_title\") | .number" 2>/dev/null | head -1 || echo "")
+
+    if [[ -n "$existing_issue" ]]; then
+      echo "  • T$test_num issue #$existing_issue exists"
+      test_issue_refs+=("$existing_issue")
+    else
+      issue_body=$(cat <<EOF
+## Acceptance test T$test_num
+
+**Plugin:** \`$plugin\`
+**What this verifies:** See \`docs/design/acceptance-tests.md#t$test_num\`
+**How to run locally:**
+\`\`\`bash
+bash .github/workflows/scripts/test-$test_num.sh $plugin
+\`\`\`
+
+This issue closes automatically when CI's matrix job for \`$plugin\`
+passes T$test_num on a merged PR.
+EOF
+)
+      issue_number=$(gh issue create --repo "$REPO" \
+        --title "$test_title" \
+        --milestone "$milestone_title" \
+        --label "migration,acceptance-test,area/$plugin,test/$test_num" \
+        --body "$issue_body" \
+        --json number --jq '.number' 2>/dev/null || \
+        gh issue create --repo "$REPO" \
+          --title "$test_title" \
+          --milestone "$milestone_title" \
+          --label "migration,acceptance-test,area/$plugin,test/$test_num" \
+          --body "$issue_body" | grep -oE '[0-9]+$')
+
+      echo "  ✓ T$test_num: issue #$issue_number"
+      test_issue_refs+=("$issue_number")
+    fi
+  done
+
+  # Tracking issue
+  tracking_title="[$plugin] Migration tracker"
+  existing_tracker=$(gh issue list --repo "$REPO" \
+    --label tracking \
+    --search "\"$tracking_title\" in:title" \
+    --state all --json number,title \
+    --jq ".[] | select(.title == \"$tracking_title\") | .number" 2>/dev/null | head -1 || echo "")
+
+  if [[ -n "$existing_tracker" ]]; then
+    echo "  • tracker issue #$existing_tracker exists"
+  else
+    # Build the checklist body
+    checklist=""
+    for i in "${!TEST_TITLES[@]}"; do
+      ref="${test_issue_refs[$i]}"
+      if [[ "$ref" == "N/A" ]]; then
+        checklist+="- [ ] T$((i+1)): ${TEST_TITLES[$i]} (N/A — plugin doesn't write to GitHub)\n"
+      else
+        checklist+="- [ ] T$((i+1)): ${TEST_TITLES[$i]} (#$ref)\n"
+      fi
+    done
+
+    tracker_body=$(cat <<EOF
+# [$plugin] Migration tracker
+
+**Tier:** $tier
+**Due:** $due
+**Progress:** 0/8 tests passing
+
+## Acceptance tests
+
+$(printf "$checklist")
+
+## When this closes
+
+This tracker closes when the \`Plugin: $plugin\` milestone hits 100%.
+Merging a PR that closes the 8th test issue auto-closes the milestone.
+
+## Related
+
+- Milestone: [\`Plugin: $plugin\`](../milestones/$milestone_number)
+- Project board: [kwpc-migration](../../orgs/$KWPC_REPO_OWNER/projects/$KWPC_PROJECT_NUMBER)
+EOF
+)
+    gh issue create --repo "$REPO" \
+      --title "$tracking_title" \
+      --milestone "$milestone_title" \
+      --label "tracking,migration,area/$plugin" \
+      --body "$tracker_body" > /dev/null
+    echo "  ✓ tracker issue created"
+  fi
+
+  echo
+done
+
+echo "✓ Bootstrap complete."
+echo
+echo "Next steps:"
+echo "  1. Open the project board: https://github.com/orgs/$KWPC_REPO_OWNER/projects/$KWPC_PROJECT_NUMBER"
+echo "  2. Configure the project fields: Status, Tier, Plugin, Test, Sprint"
+echo "  3. Add all migration-labeled issues to the board (gh project item-add)"
+echo "  4. Start Wave 0: data-cli, platform-engineering, it-admin"
+```
+
+Make it executable:
+
+```bash
+chmod +x scripts/bootstrap-migration.sh
+```
+
+---
+
+## .github/workflows/acceptance-tests.yml
+
+```yaml
+name: acceptance-tests
+
+on:
+  pull_request:
+    paths:
+      - '**/.claude-plugin/**'
+      - '**/skills/**'
+      - '**/commands/**'
+      - '**/agents/**'
+      - '**/.mcp.json'
+      - 'packages/schema/**'
+      - 'scripts/**'
+      - '.github/workflows/acceptance-tests.yml'
+  workflow_dispatch:
+    inputs:
+      plugin:
+        required: true
+        description: "Plugin name (e.g. legal-cli)"
+
+permissions:
+  contents: read
+  issues: write      # to close passing test issues
+  pull-requests: read
+
+jobs:
+  detect-changed-plugins:
+    runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.detect.outputs.plugins }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: detect
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "plugins=[\"${{ github.event.inputs.plugin }}\"]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | awk -F/ '/-cli\//{print $1}' \
+            | sort -u \
+            | jq -R -s -c 'split("\n")|map(select(length>0))')
+          if [[ "$changed" == "[]" ]]; then
+            # Default to a dummy plugin so matrix has at least one entry
+            echo "plugins=[\"none\"]" >> "$GITHUB_OUTPUT"
+          else
+            echo "plugins=$changed" >> "$GITHUB_OUTPUT"
+          fi
+
+  run-tests:
+    needs: detect-changed-plugins
+    if: needs.detect-changed-plugins.outputs.plugins != '["none"]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJSON(needs.detect-changed-plugins.outputs.plugins) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # T1
+      - name: T1 · manifest validity
+        run: claude plugin validate ${{ matrix.plugin }}/.claude-plugin/plugin.json
+
+      # T2
+      - name: T2 · skill frontmatter lints
+        run: python3 scripts/lint-skill-frontmatter.py ${{ matrix.plugin }}/skills/
+
+      # T3
+      - name: T3 · command frontmatter lints
+        run: python3 scripts/lint-command-frontmatter.py ${{ matrix.plugin }}/commands/
+
+      # T4
+      - name: T4 · MCP config reachable
+        run: bash scripts/check-mcp-reachable.sh ${{ matrix.plugin }}/.mcp.json
+
+      # T5
+      - name: T5 · skills fire on trigger phrases
+        run: bash scripts/test-skill-triggers.sh ${{ matrix.plugin }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      # T6
+      - name: T6 · commands run on fixtures
+        run: bash scripts/test-command-fixtures.sh ${{ matrix.plugin }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      # T7 — only for plugins that write to GitHub
+      - name: T7 · GraphQL round-trip
+        if: contains(fromJSON('["productivity-cli","product-management-cli","platform-engineering","it-admin"]'), matrix.plugin)
+        run: bash scripts/test-graphql-roundtrip.sh ${{ matrix.plugin }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.TEST_GH_TOKEN }}
+          KWPC_REPO_OWNER: ${{ github.repository_owner }}
+          KWPC_REPO_NAME: ${{ github.event.repository.name }}
+
+      # T8
+      - name: T8 · docs complete
+        run: bash scripts/docs-complete.sh ${{ matrix.plugin }}
+
+  close-test-issues:
+    needs: run-tests
+    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Close passing acceptance-test issues
+        run: bash scripts/close-passing-acceptance-tests.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KWPC_REPO_OWNER: ${{ github.repository_owner }}
+          KWPC_REPO_NAME: ${{ github.event.repository.name }}
+          MERGED_PR: ${{ github.event.pull_request.number }}
+```
+
+---
+
+## .github/workflows/pin-freshness.yml
+
+```yaml
+name: pin-freshness
+
+on:
+  schedule:
+    - cron: "0 14 * * 1"    # Mondays 14:00 UTC — see ADR 0005
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-pins:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ant
+            plugin: it-admin
+            pinfile: it-admin/ant-pin.json
+          - name: claude-code
+            plugin: platform-engineering
+            pinfile: platform-engineering/cc-pin.json
+          - name: duckdb
+            plugin: data-cli
+            pinfile: data-cli/deps-pin.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          curl -fsSL https://raw.githubusercontent.com/fsaintjacques/semver-tool/master/src/semver -o /usr/local/bin/semver
+          chmod +x /usr/local/bin/semver
+
+      - name: Check pin
+        id: check
+        run: |
+          bash scripts/check-pin-freshness.sh ${{ matrix.pinfile }} > /tmp/drift.json || true
+          cat /tmp/drift.json
+          echo "status=$(jq -r .status /tmp/drift.json)" >> "$GITHUB_OUTPUT"
+          echo "severity=$(jq -r '.severity // "none"' /tmp/drift.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update drift issue
+        if: steps.check.outputs.status != 'fresh'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const drift = JSON.parse(fs.readFileSync('/tmp/drift.json', 'utf8'));
+            const pin = { name: '${{ matrix.name }}', plugin: '${{ matrix.plugin }}' };
+
+            const title = `[pin-drift] ${pin.name} pin in ${pin.plugin} is ${drift.status}`;
+            const labels = ['pin-drift', `area/${pin.plugin}`, `severity/${drift.severity}`];
+
+            const entries = (drift.relevant_entries || []).map(e => `- ${e}`).join('\n')
+              || '_No relevant entries matched the watch_for filter._';
+
+            const body = [
+              `**Dependency:** \`${pin.name}\``,
+              `**Plugin:** \`${pin.plugin}\``,
+              `**Pinned:** \`${drift.pinned}\``,
+              `**Latest upstream:** \`${drift.latest}\``,
+              `**Status:** ${drift.status}`,
+              '',
+              '### Relevant CHANGELOG entries',
+              '',
+              entries,
+              '',
+              '### Action',
+              '',
+              '- [ ] Review entries above',
+              `- [ ] Run \`/${pin.name}-version-check --fix\` locally`,
+              '- [ ] Update any skills referencing changed surface',
+              `- [ ] Commit with \`deps(${pin.plugin}): bump ${pin.name} pin to ${drift.latest}\``,
+              '',
+              `_Auto-updated by .github/workflows/pin-freshness.yml at ${new Date().toISOString()}._`,
+            ].join('\n');
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'pin-drift',
+            });
+            const existing = open.find(i => i.title === title);
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+                labels,
+              });
+              core.info(`Updated existing issue #${existing.number}`);
+            } else {
+              const { data: created } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels,
+              });
+              core.info(`Created new issue #${created.number}`);
+            }
+
+      - name: Close resolved drift issue
+        if: steps.check.outputs.status == 'fresh'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pin = { name: '${{ matrix.name }}', plugin: '${{ matrix.plugin }}' };
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'pin-drift',
+            });
+            for (const issue of open) {
+              if (issue.title.includes(`${pin.name} pin in ${pin.plugin}`)) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: `Closed automatically — pin now matches upstream.`,
+                });
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  state: 'closed',
+                });
+              }
+            }
+```
+
+---
+
+## .github/workflows/release-please.yml
+
+```yaml
+name: release-please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        if: ${{ steps.release.outputs.releases_created == 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Publish each package that had a release cut this run
+      - name: Publish data-cli
+        if: ${{ steps.release.outputs['data-cli--release_created'] == 'true' }}
+        working-directory: data-cli
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish platform-engineering
+        if: ${{ steps.release.outputs['platform-engineering--release_created'] == 'true' }}
+        working-directory: platform-engineering
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish it-admin
+        if: ${{ steps.release.outputs['it-admin--release_created'] == 'true' }}
+        working-directory: it-admin
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish productivity-cli
+        if: ${{ steps.release.outputs['productivity-cli--release_created'] == 'true' }}
+        working-directory: productivity-cli
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish product-management-cli
+        if: ${{ steps.release.outputs['product-management-cli--release_created'] == 'true' }}
+        working-directory: product-management-cli
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Add more publish steps as each plugin reaches 0.1.0
+      # All 14 will be parameterized via a matrix in a follow-up
+```
+
+---
+
+## release-please-config.json
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-component-in-tag": true,
+  "separate-pull-requests": false,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
+  "changelog-sections": [
+    { "type": "feat",     "section": "Features" },
+    { "type": "fix",      "section": "Bug Fixes" },
+    { "type": "perf",     "section": "Performance" },
+    { "type": "revert",   "section": "Reverts" },
+    { "type": "docs",     "section": "Documentation", "hidden": false },
+    { "type": "deps",     "section": "Dependencies" },
+    { "type": "chore",    "section": "Chores",    "hidden": true },
+    { "type": "refactor", "section": "Refactors", "hidden": true },
+    { "type": "test",     "section": "Tests",     "hidden": true },
+    { "type": "ci",       "section": "CI",        "hidden": true },
+    { "type": "build",    "section": "Build",     "hidden": true },
+    { "type": "style",    "section": "Style",     "hidden": true }
+  ],
+  "packages": {
+    "data-cli":                { "package-name": "@agentknowledgeworkers/data-cli",                "extra-files": [{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }] },
+    "platform-engineering":    { "package-name": "@agentknowledgeworkers/platform-engineering",    "extra-files": [{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }] },
+    "it-admin":                { "package-name": "@agentknowledgeworkers/it-admin",                "extra-files": [{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }] },
+    "productivity-cli":        { "package-name": "@agentknowledgeworkers/productivity-cli",        "extra-files": [{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }] },
+    "product-management-cli":  { "package-name": "@agentknowledgeworkers/product-management-cli",  "extra-files": [{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }] },
+    "packages/schema":         { "package-name": "@agentknowledgeworkers/schema" }
+  },
+  "plugins": [
+    {
+      "type": "linked-versions",
+      "groupName": "knowledge-work-plugins-cli",
+      "components": ["data-cli", "platform-engineering", "it-admin", "productivity-cli", "product-management-cli"]
+    }
+  ]
+}
+```
+
+## .release-please-manifest.json
+
+```json
+{
+  "data-cli": "0.0.1",
+  "platform-engineering": "0.0.1",
+  "it-admin": "0.0.1",
+  "productivity-cli": "0.0.1",
+  "product-management-cli": "0.0.1",
+  "packages/schema": "0.0.1"
+}
+```
+
+Additional plugins (legal, finance, sales, etc.) join the config + manifest as
+they graduate past scaffold stage.
+
+---
+
+## Required GitHub secrets
+
+| Secret | Purpose |
+|---|---|
+| `NPM_TOKEN` | Publish to `@agentknowledgeworkers/*` — scoped granular token, publish-only |
+| `ANTHROPIC_API_KEY` | For T5 and T6 that run headless Claude Code |
+| `TEST_GH_TOKEN` | For T7 — a PAT scoped to a test repo (or use GITHUB_TOKEN if writing to this repo) |
+
+---
+
+## Run order
+
+```bash
+# 1. Create Project V2 in GitHub UI — remember the number
+export KWPC_PROJECT_NUMBER=1
+
+# 2. Bootstrap everything
+export KWPC_REPO_OWNER=agentknowledgeworkers
+export KWPC_REPO_NAME=knowledge-work-plugins-cli
+./scripts/bootstrap-migration.sh
+
+# 3. Push the CI workflows
+git add .github/ scripts/ release-please-config.json .release-please-manifest.json
+git commit -m "ci: bootstrap migration automation"
+git push
+
+# 4. Watch the pin-freshness workflow fire once manually
+gh workflow run pin-freshness.yml
+
+# 5. Ready to start Wave 0
+```
+
+---
+
+That's steps 1 and 2 of the execution queue delivered. The website will boot locally, deploy to Cloudflare, and the kwpc repo has its migration plan materialized in GitHub — all ADRs, all milestones, all issues, all CI.
+
+## What's still queued
+
+- [ ] **Step 3**: Cloudflare Pages Function for `/api/projects` + KV cache + claude task bridge + URL-synced selection state
+- [ ] **Step 4**: per-plugin landing pages, ADR rendering, changelog route, sprint swim-lane, "how this page was built" footer
+- [ ] **Step 5**: Swift iOS companion
+
+Tell me which to execute next and I'll deliver the artifact.

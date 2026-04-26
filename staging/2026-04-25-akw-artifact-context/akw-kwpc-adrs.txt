@@ -1,0 +1,703 @@
+# knowledge-work-plugins-cli — bootstrap deliverables
+
+Drop these into the empty `agentknowledgeworkers/knowledge-work-plugins-cli` repo.
+Six ADRs that codify the decisions from the migration plan, plus the top-level
+docs structure (`README.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`).
+
+## Directory layout
+
+```
+knowledge-work-plugins-cli/
+├── README.md
+├── ARCHITECTURE.md
+├── CONTRIBUTING.md
+├── CHANGELOG.md                 ← auto-managed by release-please (empty for now)
+├── LICENSE                      ← Apache-2.0
+├── SECURITY.md
+├── .github/
+│   ├── workflows/
+│   │   ├── acceptance-tests.yml ← next artifact
+│   │   ├── pin-freshness.yml    ← next artifact
+│   │   └── release-please.yml   ← next artifact
+│   └── ISSUE_TEMPLATE/
+│       └── pin-update.yml
+├── docs/
+│   ├── adr/
+│   │   ├── 0001-release-please-not-changesets.md
+│   │   ├── 0002-github-projects-as-storage.md
+│   │   ├── 0003-shared-graphql-schema.md
+│   │   ├── 0004-hybrid-storage-claudemd-plus-github.md
+│   │   ├── 0005-pin-pattern-and-drift-detection.md
+│   │   └── 0006-linked-versions-except-schema.md
+│   ├── design/                  ← long-form design notes (populate from migration plan doc)
+│   └── rfcs/
+│       └── 0001-when-to-unlink-versions.md
+├── packages/
+│   └── schema/                  ← GraphQL schema + curl client (stub)
+│       └── README.md
+├── scripts/
+│   └── bootstrap-migration.sh   ← next artifact
+├── data-cli/                    ← plugin skeleton
+├── productivity-cli/            ← plugin skeleton
+├── product-management-cli/      ← plugin skeleton
+├── platform-engineering/        ← plugin skeleton
+└── it-admin/                    ← plugin skeleton
+```
+
+---
+
+## README.md
+
+```markdown
+# knowledge-work-plugins-cli
+
+Official Claude Code plugins from Agent Knowledge Workers. Parallels the
+Cowork `knowledge-work-plugins` repo but tuned for the CLI: terminal, Claude
+Code on the web, Remote Control.
+
+## The suite
+
+| Plugin                  | Tier | Wave | Purpose                              |
+|-------------------------|------|------|--------------------------------------|
+| `data-cli`              | T2   | 0    | Terminal-native data analyst         |
+| `platform-engineering`  | T2   | 0    | Plugin authoring toolkit             |
+| `it-admin`              | T2   | 0    | `ant admin *` wrapper                |
+| `productivity-cli`      | T2   | 1    | Tasks, memory, coordination          |
+| `product-management-cli`| T2   | 1    | Specs, roadmaps, updates             |
+| `legal-cli`             | T1   | 2    | Contract review                      |
+| `finance-cli`           | T1   | 2    | Close & reconciliation               |
+| `sales-cli`             | T1   | 2    | Call prep & outreach                 |
+| `customer-support-cli`  | T1   | 2    | Ticket triage                        |
+| `marketing-cli`         | T1   | 2    | Content drafting                     |
+| `operations-cli`        | T1   | 2    | Runbooks                             |
+| `human-resources-cli`   | T1   | 2    | Offers & onboarding                  |
+| `engineering-cli`       | T2   | 3    | Standups & code workflows            |
+| `design-cli`            | T2   | 3    | Structured critique & Figma          |
+| `enterprise-search-cli` | T2   | 3    | Cross-tool knowledge search          |
+| `pdf-viewer-cli`        | T3   | 4    | Annotate & reconcile PDFs            |
+
+## Install
+
+```bash
+claude plugins add agentknowledgeworkers/knowledge-work-plugins-cli/data-cli
+```
+
+## Philosophy
+
+- **Skills are instructions for Claude**, not docs for humans. Imperative voice.
+- **Progressive disclosure**: `SKILL.md` bodies under ~3000 words; push detail into `references/`.
+- **Terminal-first output**: plain text, piped-friendly JSON, ASCII charts. No HTML dashboards.
+- **Pinned dependencies**: every external tool is version-pinned. Drift is caught by `/stack-check` before it bites.
+- **Dogfooded**: the PM plugins coordinate the migration that builds them.
+
+## Status
+
+See live tracker at [agentknowledgeworkers.com](https://agentknowledgeworkers.com).
+Milestones + tests visible in [Projects](https://github.com/orgs/agentknowledgeworkers/projects).
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
+```
+
+---
+
+## ARCHITECTURE.md
+
+```markdown
+# Architecture
+
+## The five layers
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ agentknowledgeworkers.com                               │
+│ (live tracker, dogfoods everything below)               │
+├─────────────────────────────────────────────────────────┤
+│ product-management-cli    productivity-cli              │
+│ (coordination layer — sprint planning, status updates)  │
+├─────────────────────────────────────────────────────────┤
+│ packages/schema                                         │
+│ (shared GraphQL schema + curl client)                   │
+├─────────────────────────────────────────────────────────┤
+│ data-cli · platform-engineering · it-admin · (10 more)  │
+│ (the ported plugins)                                    │
+├─────────────────────────────────────────────────────────┤
+│ GitHub (milestones, issues, PRs, releases)              │
+│ (single source of truth)                                │
+└─────────────────────────────────────────────────────────┘
+```
+
+## The data model
+
+- **Projects** (GitHub Projects V2) — one per plugin, one for the site
+- **Milestones** — one per plugin port, plus ad-hoc for the site
+- **Issues** — 8 acceptance-test issues per plugin + feature work
+- **Tasks** — canonical Claude Code `TaskCreate` entries, child of an issue
+
+## The 8 acceptance tests
+
+Every plugin port closes when the same 8-test suite passes in CI:
+
+| # | Test | Tool |
+|---|---|---|
+| T1 | Manifest validity | `claude plugin validate` |
+| T2 | Skill frontmatter | `lint-skill-frontmatter.py` |
+| T3 | Command frontmatter | `lint-command-frontmatter.py` |
+| T4 | MCP reachable | `curl -sSI` |
+| T5 | Skills fire on triggers | headless `claude --agent ... /cmd` |
+| T6 | Commands on fixtures | per-command validator |
+| T7 | GraphQL round-trip | `kwpc_graphql` client |
+| T8 | Docs complete | `docs-complete.sh` |
+
+## Dogfooding loop
+
+1. `product-management-cli /sprint-planning` reads GitHub milestones, creates Claude Code tasks
+2. Engineer runs `productivity-cli /my-tasks`, picks up a task, opens a PR
+3. PR triggers `acceptance-tests.yml` — the 8 tests run
+4. On green, `close-passing-acceptance-tests.sh` closes the test issues
+5. 8th close → milestone auto-closes → `release-please` opens a release PR
+6. Merged release PR → npm publish under `@agentknowledgeworkers/*`
+7. agentknowledgeworkers.com tracker updates via the GraphQL cache refresh
+```
+
+---
+
+## CONTRIBUTING.md
+
+```markdown
+# Contributing
+
+## Commit style
+
+Conventional Commits, scoped:
+
+- `feat(data-cli): add /profile-schema`
+- `fix(it-admin): correct ant flag name`
+- `deps(data-cli): bump duckdb pin to 1.2.0`
+- `docs(platform-engineering): clarify SKILL.md rules`
+- `chore(ci): update Node version`
+
+Commit type → CHANGELOG section mapping is in `release-please-config.json`.
+Scope = plugin directory name, or one of: `schema`, `ci`, `docs`.
+
+## Pull requests
+
+1. Branch from `main`: `git checkout -b feat/my-thing`
+2. Commit in Conventional style
+3. Push and open a PR
+4. Wait for the 8 acceptance tests to pass (matrix job per changed plugin)
+5. When all 8 green, reviewer merges
+
+## Non-goals
+
+To keep the repo focused, **we are not building**:
+
+- A hosted docs site — GitHub renders `docs/` natively
+- Custom CLI tooling beyond `claude` and `ant` — those are our primitives
+- Per-plugin versioning (yet) — suite is linked until it demonstrably shouldn't be
+- A web UI for managing plugins — the CLI is the UI
+- Integrations with non-Anthropic MCP servers without a compelling user request
+
+## ADRs
+
+Every non-trivial decision gets an ADR in `docs/adr/`. Format per `docs/adr/0000-template.md`.
+When a decision changes, write a new ADR that supersedes the old one. Do not edit old ADRs.
+```
+
+---
+
+## docs/adr/0001-release-please-not-changesets.md
+
+```markdown
+# ADR 0001: release-please over changesets
+
+- Status: Accepted
+- Date: 2026-04-22
+- Deciders: @agentknowledgeworkers
+
+## Context
+
+The kwpc repo is a monorepo publishing 14+ plugins as npm packages under
+`@agentknowledgeworkers/*`. We need automated versioning and CHANGELOG
+generation that integrates with GitHub's primitives (Milestones, Issues, PRs)
+because those are the source of truth for the migration.
+
+Two viable tools: Google's `release-please` and Atlassian's `changesets`.
+
+## Decision
+
+Use `release-please`.
+
+## Consequences
+
+**Positive:**
+- Matches what `anthropics/claude-code` and `anthropics/anthropic-cli` use, so
+  contributors need to learn one convention
+- Conventional Commits already become our source of truth for CHANGELOG
+  generation — no separate "changeset" artifact per PR
+- Native GitHub integration: release PRs, tag creation, asset uploads
+- `linked-versions` plugin supports our "version the whole suite together"
+  policy without custom tooling
+- `extra-files` field keeps `.claude-plugin/plugin.json` `version` in lockstep
+  with `package.json` — critical because the plugin manifest and npm package
+  must agree or `claude plugins add` installs mismatched versions
+
+**Negative / trade-offs:**
+- Contributors must learn Conventional Commits — one-time cost, enforced via
+  commitlint + action-semantic-pull-request
+- `release-please` config is verbose; we keep it in a single top-level JSON
+- Section filters hide `chore`, `ci`, `test`, `refactor`, `style`, `build` from
+  the CHANGELOG — this is intentional (users don't care about internal churn)
+  but we must manually promote something with `feat` or `fix` when we want
+  users to see it
+
+## Alternatives considered
+
+**changesets**: more granular (per-PR "changeset" files), better for teams
+that want human judgment on every version bump. Rejected because:
+- Adds a manual artifact to every PR (friction)
+- Doesn't mirror anthropic-ecosystem conventions
+- Our acceptance tests already produce the binary pass/fail signal that
+  should drive versioning — no human judgment needed
+
+**Manual versioning + handwritten CHANGELOG**: rejected. 14 plugins. Not viable.
+
+## References
+
+- Migration plan doc, §4 "GraphQL bootstrap" and §9 "Release automation"
+- https://github.com/googleapis/release-please
+- https://github.com/anthropics/anthropic-cli (uses release-please)
+```
+
+---
+
+## docs/adr/0002-github-projects-as-storage.md
+
+```markdown
+# ADR 0002: GitHub Projects V2 is the storage layer
+
+- Status: Accepted
+- Date: 2026-04-22
+- Deciders: @agentknowledgeworkers
+
+## Context
+
+The PM plugins (`product-management-cli`, `productivity-cli`) need a
+coordination backend: where do sprint plans, tasks, status, and stakeholder
+updates live?
+
+Options: Linear, Jira, Asana, Notion, GitHub Projects V2, custom DB.
+
+## Decision
+
+Use GitHub Projects V2. All state lives in GitHub — Issues, Milestones,
+Project fields, PR references. No external database.
+
+## Consequences
+
+**Positive:**
+- Single source of truth. The PR that closes an acceptance test is linked
+  to the Issue that tracks the test which lives in the Milestone for the
+  plugin which sits in the Project for the migration. One graph.
+- Free — no SaaS bill
+- Queryable via GraphQL, which `packages/schema` already wraps
+- Contributors don't need new accounts or new UI literacy
+- The dogfooding loop closes: PM plugins query the same GitHub API that
+  engineers push to
+
+**Negative / trade-offs:**
+- GitHub Projects V2 is less powerful than Linear for complex workflows
+  (no custom automations, limited view types, no Gantt)
+- Rate limits on the GraphQL API (5k points/hour for authenticated users)
+  — mitigated by KV cache at the CF Functions layer for the public site
+- No offline mode — if GitHub is down, PM plugins can't coordinate
+  (acceptable: if GitHub is down, nothing else works either)
+
+## Alternatives considered
+
+**Linear**: better UX, powerful API. Rejected because (a) the PM plugins
+would need to sync two systems (PRs still live on GitHub), and (b) we
+can't dogfood a workflow we'd recommend to others if it requires a
+paid SaaS.
+
+**Custom Postgres**: rejected — we're building plugins, not a platform.
+Hosting a database adds an operational surface we don't want.
+
+**Notion**: rejected — API is slow, rate-limited harder than GitHub,
+and doesn't link cleanly to PRs.
+
+## References
+
+- Migration plan doc, §3 "GitHub Milestone + Issue + Project structure"
+- https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects
+```
+
+---
+
+## docs/adr/0003-shared-graphql-schema.md
+
+```markdown
+# ADR 0003: shared GraphQL schema as a versioned package
+
+- Status: Accepted
+- Date: 2026-04-22
+- Deciders: @agentknowledgeworkers
+
+## Context
+
+Multiple plugins (`productivity-cli`, `product-management-cli`,
+`platform-engineering`) need to query and mutate GitHub state via the
+GraphQL API. Each could hand-roll queries, or they could share.
+
+## Decision
+
+Create `packages/schema` — a shared package containing:
+- `.graphql` query/mutation files
+- A `kwpc_graphql` shell client (curl-based, no Node/Python dep)
+- Response-parsing helpers in bash + jq
+- TypeScript type definitions generated from the schema (for the website)
+
+All plugins that touch GitHub use this package. Versioned and released
+alongside the plugins.
+
+## Consequences
+
+**Positive:**
+- One place to update when GitHub's API changes
+- Queries are reviewed once, reused everywhere
+- The kwpc website (built on Vite/React) consumes the same schema via
+  generated TS types, so tracker UI and plugins can't drift
+- Testing the schema package against a real repo validates all
+  consumers simultaneously
+
+**Negative / trade-offs:**
+- Plugins now depend on a package (tight coupling) — mitigated by
+  SemVer and `linked-versions` so a schema bump forces all consumers
+  to update
+- Bash + jq parsing is fiddly — we accept this to keep the CLI
+  dependency footprint minimal (no Node/Python required to run
+  the plugins)
+
+## Alternatives considered
+
+**Per-plugin queries**: rejected — 14x maintenance burden, guaranteed
+drift, and inconsistent error handling.
+
+**Use `gh` CLI's built-in API commands**: rejected for complex queries —
+`gh api graphql` works for one-shots, but we need structured query
+files under version control.
+
+## References
+
+- Migration plan doc, §4 "GraphQL bootstrap"
+```
+
+---
+
+## docs/adr/0004-hybrid-storage-claudemd-plus-github.md
+
+```markdown
+# ADR 0004: hybrid storage — CLAUDE.md + GitHub
+
+- Status: Accepted
+- Date: 2026-04-22
+- Deciders: @agentknowledgeworkers
+
+## Context
+
+Where does Claude's "memory" for a session live? Two places have legitimate
+claims:
+
+1. **`CLAUDE.md`** in the repo — user-maintained, git-tracked, loaded at
+   session start by Claude Code
+2. **GitHub** — issues, PRs, project state — canonical for work state
+
+A single-source-of-truth rule would say pick one. Reality says they serve
+different purposes.
+
+## Decision
+
+Use both, with clear separation of concerns:
+
+- **`CLAUDE.md`** — working memory, hot cache. User preferences, team
+  glossary, active project context. Optimized for being loaded every
+  session. Edited by humans.
+- **GitHub** — authoritative work state. Issues, milestones, PRs, project
+  fields. Edited by PM plugins via GraphQL mutations. Read by plugins
+  via cached GraphQL queries.
+- **`memory/` directory** — long-form decoder ring, project files, people
+  profiles. Progressive disclosure: referenced from `CLAUDE.md` but
+  not inlined.
+
+Plugins never write to `CLAUDE.md` automatically (that's the user's file).
+Plugins do write to GitHub.
+
+## Consequences
+
+**Positive:**
+- User feels in control of their own memory (CLAUDE.md is theirs)
+- Work state can't get out of sync — there's one place for "what's the
+  status of issue #234"
+- Humans and plugins can both contribute without stepping on each other
+- Onboarding a new contributor means: clone repo, read CLAUDE.md, read
+  memory/, query GitHub for live state
+
+**Negative / trade-offs:**
+- Contributors must learn where things live (mitigated: memory/README.md
+  explains the split)
+- If a user deletes CLAUDE.md, plugin behavior degrades quietly — the
+  `SessionStart` hook in `platform-engineering` checks for this and warns
+
+## Alternatives considered
+
+**CLAUDE.md only**: rejected — doesn't scale beyond small projects,
+can't be queried, can't drive live UIs like the tracker.
+
+**GitHub only**: rejected — every session would start with API calls,
+Claude would need to re-learn the user's preferences on every session,
+and offline work becomes impossible.
+
+## References
+
+- Migration plan doc, §7 "Dogfooding"
+```
+
+---
+
+## docs/adr/0005-pin-pattern-and-drift-detection.md
+
+```markdown
+# ADR 0005: version-pinning pattern and drift detection
+
+- Status: Accepted
+- Date: 2026-04-22
+- Deciders: @agentknowledgeworkers
+
+## Context
+
+Every plugin depends on external tools: `claude-code` (the CLI), `ant`
+(Claude Platform CLI), DuckDB, Python packages, MCP server endpoints.
+These tools release frequently. If a plugin's skill says "use `ant admin
+usage-report`" but the installed `ant` renamed that command, the plugin
+fails silently or cryptically.
+
+We need to know when the installed version drifts from what the plugin's
+skills were authored against.
+
+## Decision
+
+Three pin-file shapes, one per dependency type:
+
+1. **Flat pin** (`ant-pin.json`): `pinned_version`, `minimum_version`,
+   `changelog_url`, `watch_for[]`
+2. **Nested-by-package** (`cc-pin.json`): separates the binary version
+   from the authoring-surface object (frontmatter fields, hook events,
+   valid plugin.json keys)
+3. **Nested-by-dependency** (`deps-pin.json`): multiple entries keyed
+   by dependency name, each with its own check_command + watch_for
+
+A unified `/stack-check` command aggregates all three shapes across all
+installed plugins. A weekly CI action (`pin-freshness.yml`) checks every
+pin against upstream and opens an issue when drift is detected, with
+CHANGELOG entries filtered by each pin's `watch_for` array.
+
+## Consequences
+
+**Positive:**
+- Drift becomes visible before a user hits a cryptic error
+- Different pin shapes accommodate different kinds of dependencies
+  (a binary vs a plugin authoring surface vs a set of Python packages)
+  without forcing a one-size-fits-all schema
+- CI-side and interactive-side both use `scripts/lib/parse-changelog.sh`,
+  so what CI surfaces and what `/ant-version-check` surfaces match
+
+**Negative / trade-offs:**
+- Three shapes to maintain — documented in `docs/design/version-pinning.md`
+- Weekly cadence can feel spammy if many pins drift simultaneously —
+  mitigated by dedup-by-title (one open issue per dependency, updated
+  in place on subsequent runs)
+
+## Alternatives considered
+
+**One unified pin shape**: rejected after trying to model the `cc-pin`
+authoring-surface object inside a flat `pinned_version` schema — too
+much information lost.
+
+**No pinning, rely on latest**: rejected — every plugin would break on
+every upstream breaking change, with no actionable diagnostic.
+
+**Dependabot / Renovate**: great for npm deps, doesn't handle binaries
+(`ant`, DuckDB) or authoring surfaces. Complementary, not a replacement.
+
+## References
+
+- Migration plan doc, §10 "Release automation and pin freshness"
+```
+
+---
+
+## docs/adr/0006-linked-versions-except-schema.md
+
+```markdown
+# ADR 0006: linked versions for plugins, independent for schema
+
+- Status: Accepted
+- Date: 2026-04-22
+- Deciders: @agentknowledgeworkers
+
+## Context
+
+`release-please` supports two modes:
+1. **Linked versions**: bump all packages together. One PR, one version
+   number across the suite.
+2. **Independent versions**: each package versions on its own cadence.
+
+With 14 plugins + 1 schema package, which mode?
+
+## Decision
+
+**Linked versions for the 14 plugins** — the suite ships together.
+**Independent versions for `packages/schema`** — it's a library the
+plugins depend on, and library versions should bump on their own rules.
+
+Concretely in `release-please-config.json`:
+
+```json
+{
+  "plugins": [
+    {
+      "type": "linked-versions",
+      "groupName": "knowledge-work-plugins-cli",
+      "components": ["data-cli", "platform-engineering", "it-admin",
+                     "productivity-cli", "product-management-cli",
+                     "legal-cli", "finance-cli", "sales-cli",
+                     "customer-support-cli", "marketing-cli",
+                     "operations-cli", "human-resources-cli",
+                     "engineering-cli", "design-cli",
+                     "enterprise-search-cli", "pdf-viewer-cli"]
+    }
+  ],
+  "packages": {
+    "packages/schema": { "package-name": "@agentknowledgeworkers/schema" }
+  }
+}
+```
+
+## Consequences
+
+**Positive:**
+- Users installing multiple plugins can trust they're compatible
+  ("I have `@agentknowledgeworkers/data-cli@0.3.0` and
+  `@agentknowledgeworkers/it-admin@0.3.0` — same suite, same date")
+- One release PR per sprint, not 14
+- Schema can bump independently without forcing a suite re-release,
+  which matters because schema changes are more frequent early on
+
+**Negative / trade-offs:**
+- A pure `docs:` change in one plugin triggers a patch bump across all
+  16 — CHANGELOG noise, but a cheap one (no code changes, just a
+  version string)
+- If one plugin hits 1.0 before the others, linked-versions forces them
+  all to 1.0 at the same time. We accept this; the 1.0 signal is more
+  valuable than per-plugin independence
+
+## Future reversal criteria
+
+Unlink when any of these become true:
+- One plugin's release cadence is meaningfully different from the suite
+  (e.g., `data-cli` ships weekly, others ship monthly)
+- A plugin goes into maintenance mode and should stop taking suite-wide
+  patch bumps
+- A user explicitly requests per-plugin versioning with a concrete use case
+
+If unlinking, add an ADR that supersedes this one.
+
+## References
+
+- Migration plan doc, §9 "Release automation"
+```
+
+---
+
+## docs/rfcs/0001-when-to-unlink-versions.md
+
+```markdown
+# RFC 0001: When to unlink plugin versions
+
+- Status: Open
+- Date: 2026-04-22
+- Deciders: TBD
+
+## Question
+
+ADR 0006 locks plugins to linked versions with deferred reversal criteria.
+This RFC pre-stages the decision process for *when* to flip so we're not
+starting from scratch when the moment arrives.
+
+## Signals that might trigger unlinking
+
+- **Divergent cadence**: one plugin has a `feat` commit every sprint,
+  another hasn't had one in three months
+- **Breaking change localization**: a breaking change in `pdf-viewer-cli`
+  shouldn't force everyone to bump to a new major
+- **Different user bases**: `legal-cli` users are distinct from `data-cli`
+  users, and the release notes noise isn't useful to them
+- **Dependency skew**: one plugin wants to pin to Claude Code 3.x, but
+  others aren't ready to test against 3.x yet
+
+## Process when a signal triggers
+
+1. Open an ADR that supersedes ADR 0006
+2. Update `release-please-config.json` to remove the plugin from
+   `linked-versions.components`
+3. Bump the unlinked plugin to its current version as a baseline (no
+   version change)
+4. Update README to note the plugin versions independently
+
+## Open questions
+
+- Do we unlink one plugin at a time or re-evaluate the whole linkage?
+- Do unlinked plugins still share `@agentknowledgeworkers` scope?
+- Does the schema package count as "the first unlinked package" and
+  foreshadow the pattern?
+```
+
+---
+
+## docs/adr/0000-template.md
+
+```markdown
+# ADR NNNN: <short decision title>
+
+- Status: Accepted | Proposed | Superseded by #NNNN
+- Date: YYYY-MM-DD
+- Deciders: <GitHub handles>
+
+## Context
+
+What is the situation? What forces are at play? Keep to 2–3 paragraphs.
+
+## Decision
+
+What did we decide? One or two sentences.
+
+## Consequences
+
+- Positive: ...
+- Negative / trade-offs accepted: ...
+- What this enables or forecloses later: ...
+
+## Alternatives considered
+
+- **Alternative A**: what it was, why rejected.
+- **Alternative B**: what it was, why rejected.
+
+## References
+
+- Link to related PRs, commits, issues, external docs.
+```
+
+---
+
+Next artifact in the queue: **`bootstrap-migration.sh` + the three GitHub Actions workflows** (`acceptance-tests.yml`, `pin-freshness.yml`, `release-please.yml`) so you can run one command and have all 14 milestones + 112 issues + 16 tracking issues materialized in GitHub.

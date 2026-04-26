@@ -1,0 +1,407 @@
+# Step 5 — Private staging with Cloudflare Access
+
+Industry-standard three-environment setup (Anthropic-style, Vercel-style, npm-style):
+
+| Env | Branch | URL | Access | Purpose |
+|---|---|---|---|---|
+| **Production** | `main` | `agentknowledgeworkers.com` | Public | Live site |
+| **Staging** | `staging` | `staging.agentknowledgeworkers.com` | Cloudflare Access (you only) | Persistent pre-prod |
+| **Preview** | any feature branch | `<branch>.agentknowledgeworkers.pages.dev` | Cloudflare Access (you only) | Per-PR ephemeral testing |
+
+Promotion flow: `feature/*` → PR → preview URL → merge to `staging` → validate → merge to `main` → production.
+
+---
+
+## 1. Protect branches on GitHub
+
+`github.com/agentknowledgeworkers/agentknowledgeworkers` → Settings → Branches → Add rule:
+
+**For `main`:**
+- Require pull request before merging (approvals: 1)
+- Require status checks: `build` (from `deploy.yml`)
+- Require linear history
+- Do not allow bypassing the above
+
+**For `staging`:**
+- Require pull request before merging (approvals: 0 — self-promotion OK)
+- Require status checks: `build`
+- Require linear history
+
+---
+
+## 2. Update `deploy.yml` for three-environment deploys
+
+Replace `.github/workflows/deploy.yml` with this expanded version:
+
+```yaml
+name: deploy
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc -b --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+          # Point the build-time snapshot at staging when building staging,
+          # production otherwise. Preview builds use production for stable data.
+          SNAPSHOT_SOURCE: >-
+            ${{ github.ref == 'refs/heads/staging'
+                && 'https://staging.agentknowledgeworkers.com'
+                || 'https://agentknowledgeworkers.com' }}
+
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >
+            pages deploy dist
+            --project-name=agentknowledgeworkers
+            --branch=${{ github.head_ref || github.ref_name }}
+            --commit-dirty=true
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${{ steps.deploy.outputs.deployment-url }}`;
+            const target = '${{ github.base_ref }}';
+            const body = [
+              `✨ Preview deployed: ${url}`,
+              ``,
+              `Target branch: \`${target}\``,
+              target === 'main'
+                ? `This PR will promote to **production** when merged.`
+                : `This PR will promote to **staging** when merged.`,
+              ``,
+              `🔒 Preview URL requires Cloudflare Access login.`,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body.startsWith('✨ Preview deployed'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body,
+              });
+            }
+```
+
+**What changed:**
+- Triggers on pushes to both `main` and `staging`
+- Accepts PRs targeting either branch
+- Cloudflare Pages' `--branch` flag auto-routes: pushes to `main` go to production, pushes to `staging` go to staging, everything else gets a preview URL
+- PR comment clarifies whether merge promotes to staging or production
+
+---
+
+## 3. Configure Cloudflare Pages branch behaviors
+
+In Cloudflare dashboard → Workers & Pages → `agentknowledgeworkers` → Settings → Builds & deployments:
+
+**Production branch:** `main`
+**Preview branch deployments:** All non-production branches (default — keep)
+
+→ Settings → Environment variables:
+
+| Variable | Production value | Preview value |
+|---|---|---|
+| `GITHUB_TOKEN` | (same PAT, read-only) | (same PAT) |
+| `ENVIRONMENT` | `production` | `preview` |
+| `NODE_VERSION` | `20` | `20` |
+
+The KV `AKW_CACHE` binding from `wrangler.toml` already applies to both.
+
+---
+
+## 4. Set up staging subdomain
+
+Cloudflare dashboard → `agentknowledgeworkers` Pages project → Custom domains → Set up a custom domain:
+
+- Domain: `staging.agentknowledgeworkers.com`
+- Branch: `staging`
+
+Cloudflare automatically issues an SSL certificate via Universal SSL.
+
+DNS should auto-populate. If not, add manually in DNS:
+```
+CNAME  staging  agentknowledgeworkers.pages.dev  Proxied
+```
+
+---
+
+## 5. Cloudflare Access: gate staging + previews
+
+### 5a. Enable Cloudflare Zero Trust (one-time)
+
+If you haven't already:
+
+1. Cloudflare dashboard → **Zero Trust** (left sidebar)
+2. Choose a team name (e.g., `agentknowledgeworkers`) → this becomes `agentknowledgeworkers.cloudflareaccess.com`
+3. Free plan supports up to 50 users — plenty
+
+### 5b. Add an identity provider
+
+Zero Trust → Settings → Authentication → Login methods → Add new:
+
+**Recommended: GitHub**
+1. Create a new OAuth App at github.com/settings/developers
+   - Name: `agentknowledgeworkers AKW Access`
+   - Homepage URL: `https://agentknowledgeworkers.cloudflareaccess.com`
+   - Callback URL: `https://agentknowledgeworkers.cloudflareaccess.com/cdn-cgi/access/callback`
+2. Paste Client ID + Secret into Cloudflare
+3. Test connection
+
+Also add **One-time PIN** (email) as a backup — useful if GitHub is down.
+
+### 5c. Create the Access Application for staging
+
+Zero Trust → Access → Applications → Add an application → Self-hosted:
+
+- **Application name:** `AKW Staging`
+- **Session duration:** 24 hours
+- **Application domain:**
+  - Subdomain: `staging`
+  - Domain: `agentknowledgeworkers.com`
+- **Optional path:** leave blank (protects whole subdomain)
+- **Identity providers:** GitHub + One-time PIN
+- Save and continue to policies
+
+**Policy: "Owner-only"**
+- Action: Allow
+- Session duration: Same as application
+- Configure rules:
+  - Include: `Emails` → `your-email@example.com`
+  - (or) Include: `GitHub organization` → `agentknowledgeworkers` (if you're the only member, same effect)
+
+Add more emails later as your team grows.
+
+### 5d. Gate the preview URLs too
+
+Zero Trust → Access → Applications → Add another application → Self-hosted:
+
+- **Application name:** `AKW Previews`
+- **Application domain:**
+  - Subdomain: `*`
+  - Domain: `agentknowledgeworkers.pages.dev`
+- **Policies:** Same "Owner-only" policy as staging
+
+Important: the `*` wildcard catches every branch preview URL generated by Pages
+(`staging.agentknowledgeworkers.pages.dev`, `feat-foo.agentknowledgeworkers.pages.dev`, etc.).
+
+**Do NOT** create an Access app for `agentknowledgeworkers.com` itself — that's public production.
+
+### 5e. Whitelist the Pages Functions API paths
+
+If you want `/api/*` to work without authentication (for third-party tools),
+add bypass rules. Otherwise, skip this — the whole subdomain is gated as one.
+
+For AKW's use case, gate everything including `/api/*`. Simpler.
+
+---
+
+## 6. Local staging simulation
+
+To test staging-like behavior locally without deploying:
+
+```bash
+# In .env.local (gitignored)
+VITE_ENVIRONMENT=staging
+VITE_API_BASE=https://staging.agentknowledgeworkers.com
+```
+
+Run:
+```bash
+npm run dev
+```
+
+The app reads `import.meta.env.VITE_ENVIRONMENT` and can surface a banner when
+in staging mode.
+
+Add a simple env banner component — `src/components/EnvBanner.tsx`:
+
+```typescript
+export default function EnvBanner() {
+  const env = import.meta.env.VITE_ENVIRONMENT || 'production';
+  if (env === 'production') return null;
+
+  const color = env === 'staging' ? '#F59E0B' : '#0097A7';
+  return (
+    <div style={{
+      position: 'fixed', top: 0, right: 0, zIndex: 100,
+      padding: '4px 10px', background: color, color: '#000',
+      fontFamily: `'JetBrains Mono', monospace`, fontSize: 10,
+      letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600,
+      borderBottomLeftRadius: 4,
+    }}>
+      {env}
+    </div>
+  );
+}
+```
+
+Mount in `src/routes/_PageShell.tsx` inside the top-level div.
+
+Also pass the env through Pages' environment variables:
+- `VITE_ENVIRONMENT=staging` for the staging deploy
+- `VITE_ENVIRONMENT=preview` for preview deploys
+- (nothing for production — defaults to production)
+
+Cloudflare Pages → Settings → Environment variables → add `VITE_ENVIRONMENT`
+for Preview: `preview`. Set it to `staging` only when the build detects the
+`staging` branch — add this to `deploy.yml`:
+
+```yaml
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+          VITE_ENVIRONMENT: >-
+            ${{ github.ref == 'refs/heads/main' && 'production'
+             || github.ref == 'refs/heads/staging' && 'staging'
+             || 'preview' }}
+          SNAPSHOT_SOURCE: >-
+            ${{ github.ref == 'refs/heads/staging'
+                && 'https://staging.agentknowledgeworkers.com'
+                || 'https://agentknowledgeworkers.com' }}
+```
+
+---
+
+## 7. Branch workflow — day-to-day
+
+```bash
+# Feature work
+git checkout -b feat/new-plugin-page
+# ... commits ...
+git push
+gh pr create --base staging --title "feat: per-plugin subpages"
+
+# PR opens → preview URL created automatically → requires CF Access login
+# Stakeholder reviews preview, approves PR
+
+# Merge to staging
+# Staging deploys automatically to staging.agentknowledgeworkers.com
+
+# After validation on staging, promote to production
+git checkout main
+git pull
+gh pr create --base main --head staging --title "promote: staging → production"
+
+# Merge production PR → production deploys
+```
+
+Hotfix pattern:
+
+```bash
+# From main
+git checkout -b hotfix/critical-bug main
+# ... fix ...
+git push
+gh pr create --base main --title "fix: critical bug"
+
+# After merge, sync staging
+git checkout staging
+git merge main
+git push
+```
+
+---
+
+## 8. Required secrets (GitHub repo)
+
+Already added in step 2:
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+No new secrets needed — Cloudflare Access authenticates users via browser, not via repo secrets.
+
+---
+
+## 9. Smoke test checklist
+
+- [ ] GitHub branch protection rules on `main` and `staging`
+- [ ] Staging subdomain `staging.agentknowledgeworkers.com` resolves
+- [ ] Cloudflare Zero Trust team created (`agentknowledgeworkers`)
+- [ ] GitHub OAuth app registered, wired to Cloudflare Access
+- [ ] Access application `AKW Staging` created with owner-only policy
+- [ ] Access application `AKW Previews` created with `*.pages.dev` wildcard
+- [ ] Test: open `staging.agentknowledgeworkers.com` in incognito → redirected to GitHub login → succeeds → site loads
+- [ ] Test: open `agentknowledgeworkers.com` in incognito → loads immediately, no login
+- [ ] Test: create a PR → preview URL in comment → requires login → loads
+- [ ] EnvBanner renders on staging + preview, absent on production
+- [ ] `main` → production deploy works
+- [ ] `staging` → staging deploy works
+- [ ] PR comment includes target branch + "requires CF Access login" note
+
+---
+
+## 10. What you've built
+
+- **Production** (`main` → `agentknowledgeworkers.com`) — public, ungated
+- **Staging** (`staging` → `staging.agentknowledgeworkers.com`) — private, CF Access gated
+- **Previews** (any branch → `<branch>.agentknowledgeworkers.pages.dev`) — private, CF Access gated
+- Same Zero Trust policy covers staging and all previews; add users by email, no credentials to share
+- Anthropic-style three-environment promotion path
+- Linear branch model (no gitflow overhead) — suitable for 1–3 engineers
+- When the team grows, add codeowners + required reviewers without changing the topology
+
+---
+
+## Session complete
+
+All five execution steps delivered:
+
+- [x] **Step 1** — Vite + React scaffold (`akw-vite-scaffold`)
+- [x] **Step 2** — Cloudflare Pages + GitHub Actions deploy (`akw-cf-pages-setup`)
+- [x] **Step 2b** — kwpc ADRs 0001–0006 + docs structure (`akw-kwpc-adrs`)
+- [x] **Step 2c** — kwpc bootstrap script + 3 workflows (`akw-kwpc-automation`)
+- [x] **Step 3** — Live GitHub data wiring (`akw-step3-live-data`)
+- [x] **Step 4** — Per-plugin pages + ADR + changelog routes (`akw-step4-content-routes`)
+- [x] **Step 5** — Private staging with Cloudflare Access (`akw-step5-staging`)
+
+Everything is copy-paste ready. Clone both empty repos, paste the files in
+the order the artifacts list them, and you'll have a working public site with
+a private staging gate and a live tracker of the kwpc migration it was built
+to visualize.
