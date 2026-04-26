@@ -1,0 +1,43 @@
+{
+  "generatedAt": "2026-04-26T08:00:00Z",
+  "adrs": [
+    {
+      "number": "0001",
+      "title": "Polyrepo over monorepo",
+      "plugin": "meta-repo",
+      "status": "Accepted",
+      "date": "2026-04-25",
+      "body": "## Context\n\nWe own seven `subagentapps/*` repositories plus one shared meta-repo. The team needs to decide whether to keep the polyrepo layout or consolidate into a single monorepo.\n\n## Decision\n\nKeep the polyrepo. Each plugin (`productivity-cli`, `product-management-cli`, `data-cli`, `platform-engineering`, `it-admin`, `engineering-cli`) versions independently via release-please. The meta-repo (`subagent-organizations`) holds the typed reference catalog and integration-layer specs.\n\nReasons:\n\n- Plugins ship to different audiences on different cadences\n- Each plugin can have its own CHANGELOG, owners, and CI without interference\n- The KB layer in this repo references plugins as external sources, not in-tree code\n\n## Consequences\n\n- Cross-plugin breaking changes need explicit version bumps + cross-repo PR coordination\n- The dashboard at this app reaches into each plugin via `/api/github-file` (see [`./0003-pages-functions-vs-direct-fetch.md`](./0003-pages-functions-vs-direct-fetch.md))\n- ADR cross-links between plugins go through the meta-repo's index, not direct repo paths\n\n## Status\n\nAccepted 2026-04-25. Revisit if onboarding cost grows or if cross-plugin shared code reaches >30% of any plugin's surface area.\n"
+    },
+    {
+      "number": "0002",
+      "title": "TypeScript reference catalog framing",
+      "plugin": "meta-repo",
+      "status": "Accepted",
+      "date": "2026-04-25",
+      "body": "## Context\n\nThe `subagent-organizations` meta-repo started life as a vendoring repo with submodule-pinned upstream copies of the seven plugin repos. CLAUDE.md was reverted on 2026-04-25 to remove the vendoring framing.\n\n## Decision\n\nReframe `subagent-organizations` as a **TypeScript reference catalog modeled after the Claude Agent SDK's primitive system**. No submodules. The repo holds:\n\n- `docs/spec/` — markdown contracts under per-domain dirs (`subagentmcp-sdk/`, `cli-skills/`, `frontend/`)\n- `src/` — TypeScript implementations that mirror `docs/spec/` 1:1\n- `tests/` — Bun test suite asserting against the contracts\n- `.claude/` — Claude Code project config (agents, skills, settings)\n\n## Consequences\n\n- Vendor pull-ins like the original Anthropic cookbook submodule are out — see [`./0001-polyrepo-over-monorepo.md`](./0001-polyrepo-over-monorepo.md)\n- The `kb-keeper` agent now uses crawlee-based readers (see crawlee-content-layer spec) instead of vendored tools\n- All `src/` files have a matching `docs/spec/` file before they land — enforced by the orchestrator's spec-first rule\n\n## Status\n\nAccepted 2026-04-25. CLAUDE.md #5 forbids submodules; CLAUDE.md #2 enforces spec-first.\n"
+    },
+    {
+      "number": "0003",
+      "title": "Pages Functions over direct GitHub fetch",
+      "plugin": "meta-repo",
+      "status": "Accepted",
+      "date": "2026-04-26",
+      "body": "## Context\n\nThe live-artifact dashboard fetches GitHub Project / Issue / file content. We can either:\n\n1. Direct browser → GitHub fetch with a public PAT\n2. Browser → Cloudflare Pages Function → GitHub with a server-side PAT\n\n## Decision\n\nUse Pages Functions (option 2). Each route that needs GitHub data reads from `/api/projects` (Project board) or `/api/github-file` (file content), both backed by 5-minute KV cache.\n\n## Consequences\n\n- The PAT lives in Cloudflare Secret Store, never in client code or the repo\n- Browser load is fast: KV cache hits are <100ms; cold cache hits GitHub once per 5 minutes per slug\n- Build-time `projects-snapshot.json` snapshot lets the page render before `/api/projects` resolves\n- Local dev without the GITHUB_TOKEN secret falls back to the static fixture (see `content-fixture.json`)\n\n## Status\n\nAccepted 2026-04-26. The fallback fixture pattern in PR B of #10 is the early-stage version; PR D (`/api/projects` Pages Function) replaces it with live fetch + KV cache.\n"
+    }
+  ],
+  "changelogs": [
+    {
+      "plugin": "meta-repo",
+      "version": "0.0.2",
+      "date": "2026-04-26",
+      "body": "### Features\n\n- **frontend:** scaffold `src/apps/live-artifact/` (PR #96)\n- **frontend:** SPA shell + 4 stub routes + Field animation (PR #98)\n- **kb:** contextual-retrieval pipeline complete: chunker, contextualizer, embedder + BM25, retriever, reranker, eval harness (PRs #81 → #86)\n- **sdk:** crawlee-content-layer complete: subagent-md, subagent-xml, subagent-html, subagent-js readers + parry scan + bloom cache (PRs #66 → #72)\n- **skills:** /skill-creator skill using advanced patterns (PR #74)\n- **parity:** cli-parity-tracker matrix + bun parity-check (PR #73)\n\n### Specs\n\n- engineering-cli plugin port plan + 5 skill specs (PRs #87, #91, #92, #93)\n- kb-keeper refresh routine + Anthropic jobs source (PR #95)\n"
+    },
+    {
+      "plugin": "meta-repo",
+      "version": "0.0.1",
+      "date": "2026-04-25",
+      "body": "### Features\n\n- Initial scaffold: release-please, conventional commits, polyrepo + subagentmcp-sdk + KB foundation (PR #3)\n- Pre-implementation specs + .claude scaffolding (PR #1)\n"
+    }
+  ]
+}
