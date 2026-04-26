@@ -179,6 +179,67 @@ export function htmlToMarkdown(html: string, opts?: { maxBytes?: number }): stri
 
 ## Why crawlee specifically
 
+**Implementation note (2026-04-26):** the original spec called for adopting
+Crawlee + Playwright as runtime deps. Per the issue's own guidance ("defer
+until we hit a JS-only page in real use") and CLAUDE.md "TypeScript
+reference catalog" framing, this repo ships the **interface and dispatch
+heuristic** for the Crawlee fallback, not the ~300MB Playwright runtime.
+
+Callers that need JS rendering provide a `CrawleeAdapter` implementation
+(typically a thin wrapper around Crawlee's `PlaywrightCrawler`); the
+readers consume it through a single opt-in option:
+
+```ts
+import { PlaywrightCrawler } from 'crawlee';
+import { subagentHtml } from '...tools/subagent-html';
+import type { CrawleeAdapter } from '...tools/_crawlee-fallback';
+
+const adapter: CrawleeAdapter = {
+  async render(url, opts) {
+    const out = { html: '', status: 0 };
+    const crawler = new PlaywrightCrawler({
+      requestHandler: async ({ page, response }) => {
+        out.status = response?.status() ?? 0;
+        out.html = await page.content();
+      },
+      maxConcurrency: 1,
+    });
+    await crawler.run([url]);
+    return out;
+  },
+};
+
+const result = await subagentHtml.read(url, { crawleeFallback: adapter });
+```
+
+This keeps Playwright's footprint off everyone who does not need JS
+rendering — consistent with the iter-23/25/26 zero-dep pattern.
+
+### isLikelyJsOnly heuristic
+
+`_crawlee-fallback.ts:isLikelyJsOnly()` flags fetched HTML for adapter
+re-fetch when ANY of:
+
+1. Empty / whitespace-only
+2. Length < 512 bytes
+3. No `<body>` tag at all
+4. `<body>` content (after stripping `<script>`/`<style>`/`<svg>`) under
+   100 chars
+5. `<noscript>` text dominates body content (>80% of total)
+
+The dispatcher (`dispatchHtmlFetch`) tries plain fetch first, returns its
+result on success-and-not-flagged, and otherwise delegates to the adapter.
+Errors thrown by the plain fetch also delegate (with adapter present) so
+`claude.ai/blogs` returning HTTP 403 to plain fetch routes through
+Playwright.
+
+### Provenance
+
+`HTMLReadResult.fetchedVia` records which path produced the markdown:
+`'plain-fetch'`, `'crawlee'`, or `'inject'` (test-only). Callers that
+audit content provenance (e.g., bloom cache row provenance for
+incident-response) read this field.
+
 Three concrete features earn it over plain `fetch`:
 
 1. **Playwright for JS-rendered pages** — `claude.ai/blogs` returns 403 to plain `fetch`
