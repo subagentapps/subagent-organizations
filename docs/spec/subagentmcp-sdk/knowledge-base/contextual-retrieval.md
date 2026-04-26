@@ -52,6 +52,25 @@ boundaries.
 explicitly open ("can affect retrieval performance"); we adopt the
 example-math defaults until our own evals say otherwise.
 
+**Implementation notes (2026-04-26, closes #75):**
+- Token counting is approximate (`~4 chars/token`). Swap
+  `approxTokenCount()` if a real tokenizer dep is justified later;
+  the chunker's interface stays stable.
+- `headingPath` uses ENCLOSING semantics: a heading at exactly the
+  chunk's start offset is the chunk's own content, NOT part of the
+  path. This avoids restating in the contextualizer's preamble what
+  the chunk's first line already says.
+- Code-fence aware: `#` lines inside ``` ``` ``` blocks are not
+  treated as headings (would otherwise produce false-positive split
+  points in technical docs).
+- Stable IDs: `Chunk.id = sha256(docId + "|" + ordinal + "|" + text)`.
+  Re-chunking the same document produces identical IDs — incremental
+  re-indexing only re-contextualizes the chunks whose IDs changed.
+- Boundary fallback order: heading > paragraph (blank line) > sentence
+  end > hard cut at the budget edge.
+- Empty/whitespace-only input emits a single empty chunk so the
+  pipeline downstream has a deterministic entry to track.
+
 ### 2. Contextualizer — `kb/contextualizer.ts`
 
 **Responsibility:** for each `(document, chunk)` pair, generate a 50–100
