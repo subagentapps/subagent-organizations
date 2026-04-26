@@ -1,0 +1,60 @@
+// Fixture mimicking the EVENTS array shape from
+// code.claude.com/docs/en/context-window.md.
+// The page exports EVENTS as a typed array of objects describing turn
+// events visualized in the context-window timeline.
+
+export const EVENTS = [
+  {
+    t: 0,
+    kind: 'system',
+    label: 'Session start',
+    tokens: 1200,
+    color: '#666',
+    vis: 'visible',
+    desc: 'Opening system prompt + tool catalog',
+  },
+  {
+    t: 1,
+    kind: 'user',
+    label: 'User turn 1',
+    tokens: 80,
+    color: '#1d72b8',
+    vis: 'visible',
+    desc: 'First user message',
+  },
+  {
+    t: 2,
+    kind: 'tool',
+    label: 'Read file',
+    tokens: 1500,
+    color: '#888',
+    vis: 'visible',
+    desc: 'Output of Read tool',
+    link: 'https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview',
+  },
+  {
+    t: 3,
+    kind: 'assistant',
+    label: 'Assistant turn',
+    tokens: 200,
+    color: '#10b981',
+    vis: 'visible',
+    desc: 'Reasoning + tool call',
+    link: null,
+  },
+  {
+    t: 4,
+    kind: 'compaction',
+    label: 'Auto-compaction',
+    tokens: -3000,
+    color: '#ef4444',
+    vis: 'hidden',
+    desc: 'Compaction event invoked',
+  },
+];
+
+# Context window
+
+Some prose around the export — `subagent-html` would extract this; we don't.
+
+The data above is what `subagent-js` reads.
