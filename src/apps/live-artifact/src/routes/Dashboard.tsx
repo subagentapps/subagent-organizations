@@ -4,15 +4,18 @@
  * Spec: docs/spec/frontend/live-data.md (data shape) +
  *       docs/spec/frontend/design-brief.md (kanban + filter + Field).
  *
- * PR C: full kanban (StatusColumn × IssueCard × chips) wired against
- * the static `/projects-snapshot.json` fixture. PR D swaps to live
- * `/api/projects` via the useProjects hook without touching this file.
+ * PR D: swapped from listIssues() (static fixture) to useProjects()
+ * (snapshot-then-live). The component itself is unchanged below the
+ * data layer — useProjects exposes the same Issue[] shape, plus a
+ * `source` indicator for the small "live"/"snapshot" badge near the
+ * heading so the user knows whether they're looking at cached or
+ * live data.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { Issue, Plugin } from '../types/Issue';
 import { PLUGINS } from '../types/Issue';
-import { listIssues } from '../lib/projectsFetcher';
+import { useProjects } from '../hooks/useProjects';
 import { Field } from '../components/Field/Field';
 import { KanbanGrid } from '../components/KanbanGrid/KanbanGrid';
 import { PluginFilter } from '../components/PluginFilter/PluginFilter';
@@ -30,23 +33,37 @@ function countByPlugin(issues: Issue[]): Record<Plugin, number> {
 }
 
 export function Dashboard() {
-  const [issues, setIssues] = useState<Issue[] | null>(null);
-  const [selected, setSelected] = useState<Set<Plugin>>(() => new Set());
+  const { issues, source, selectedSlug, setSelectedSlug } = useProjects();
 
-  useEffect(() => {
-    listIssues().then(setIssues);
-  }, []);
+  // PluginFilter still works in multi-select mode internally; the URL-
+  // synced single-slug from useProjects is a higher-priority filter
+  // when set. We render the multi-select behavior, but if `?slug=` is
+  // in the URL, default the filter to that slug.
+  const selected = useMemo<Set<Plugin>>(() => {
+    if (selectedSlug) return new Set([selectedSlug]);
+    return new Set();
+  }, [selectedSlug]);
 
   const counts = useMemo(
-    () => (issues ? countByPlugin(issues) : ZERO_COUNTS),
+    () => (issues.length > 0 ? countByPlugin(issues) : ZERO_COUNTS),
     [issues],
   );
 
   const filtered = useMemo(() => {
-    if (!issues) return [];
     if (selected.size === 0) return issues;
     return issues.filter((i) => selected.has(i.plugin));
   }, [issues, selected]);
+
+  function handleFilterChange(next: Set<Plugin>) {
+    if (next.size === 0) setSelectedSlug(null);
+    else if (next.size === 1) {
+      const first = [...next][0];
+      setSelectedSlug(first ?? null);
+    }
+    // Multi-select with size > 1: clear the URL slug; user is expanding
+    // beyond a single-plugin deep link, the URL goes back to "all".
+    else setSelectedSlug(null);
+  }
 
   return (
     <>
@@ -55,10 +72,11 @@ export function Dashboard() {
         <header className={dashStyles.heading}>
           <h1 className={sharedStyles.title}>Dashboard</h1>
           <p className={dashStyles.subtitle}>
-            Live tracker for the <code>subagentapps</code> polyrepo.
+            Live tracker for the <code>subagentapps</code> polyrepo.{' '}
+            <DataSourceBadge source={source} />
           </p>
         </header>
-        {issues === null ? (
+        {issues.length === 0 && source === 'none' ? (
           <p className={dashStyles.subtitle}>Loading…</p>
         ) : issues.length === 0 ? (
           <div className={sharedStyles.placeholder}>
@@ -68,7 +86,7 @@ export function Dashboard() {
           <>
             <PluginFilter
               selected={selected}
-              onChange={setSelected}
+              onChange={handleFilterChange}
               counts={counts}
             />
             <KanbanGrid issues={filtered} />
@@ -76,5 +94,19 @@ export function Dashboard() {
         )}
       </section>
     </>
+  );
+}
+
+function DataSourceBadge({ source }: { source: 'snapshot' | 'api' | 'none' }) {
+  if (source === 'none') return null;
+  const label = source === 'api' ? 'live' : 'snapshot';
+  const title =
+    source === 'api'
+      ? 'Showing live data from /api/projects (5-min KV cache)'
+      : 'Showing build-time snapshot — /api/projects unavailable';
+  return (
+    <span className={dashStyles.dataBadge} title={title}>
+      {label}
+    </span>
   );
 }
