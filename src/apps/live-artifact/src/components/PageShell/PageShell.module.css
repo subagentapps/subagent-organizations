@@ -1,3 +1,30 @@
+/* Skip-link: visually hidden until focused, then surfaces above the
+ * sticky nav. Keyboard users get a 1-Tab way to jump past the nav. */
+.skipLink {
+  position: absolute;
+  left: var(--space-2);
+  top: var(--space-2);
+  z-index: calc(var(--z-nav) + 1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--type-sm);
+  color: var(--accent);
+  transform: translateY(-200%);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.skipLink:focus {
+  transform: translateY(0);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.main:focus {
+  outline: none;
+}
+
 .header {
   position: sticky;
   top: 0;
