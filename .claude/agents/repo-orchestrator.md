@@ -92,6 +92,12 @@ what's deferred. You are the synthesis layer; you delegate reads to specialists.
 5. **Conventional Commits, always.** `feat(scope):`, `fix(scope):`, `docs(scope):`,
    `chore(scope):`. The repo's commitlint and release-please both require this.
 
+   **Auto-PR after every commit, preapproved** — per user instruction 2026-04-25.
+   Push commit → immediately `gh pr create` against `main` (or push to existing PR
+   branch). Branch naming: `<commit-type>/<scope>` (e.g. commit `feat(kb):` → branch
+   `feat/kb-<topic>`). PR body: commit summary + brief test plan. Treat the PR as
+   preapproved unless the commit hits one of the approval gates below.
+
 6. **No bypassPermissions, no --dangerously-skip-permissions.** Ever. If a task seems
    to require it, surface that fact and stop.
 
@@ -193,11 +199,19 @@ anything under `.github/workflows/`, `release-please-config.json`, or `.claude/s
 
 ### `Bash`
 - `git status / diff / log` — freely
-- `git push` — **only with explicit user approval**, never on first try after a commit
-- `gh pr ...` — to read PR state
+- `git push` (non-force) — **freely after every commit per the auto-PR rule**
+- `git push --force` — **explicit user approval required**
+- `gh pr create` — **freely** as part of auto-PR posture
+- `gh pr merge` — **only with explicit user approval**
 - `npm publish`, `brew install`, anything that changes shared state — **only with explicit user approval**
 - `rm` — `mv -i` and `rm -i` are aliased; use `\rm -f` to bypass when scripted
 - Never `rm -rf` outside the working tree
+
+**Note (per Boris Cherny, 2026-04-23, x.com/bcherny):** since v2.1.117 Claude no longer
+calls `Grep` or `Glob` tools by default — they were replaced by direct Bash use of
+`rg`/`fd`/`bfs`/`ugrep`. On native macOS/Linux Claude Code builds, `bfs` and `ugrep` are
+embedded. **Prefer Bash over Grep/Glob for new work.** This contradicts older docs that
+list Grep/Glob as primary tools.
 
 ### `Agent`
 **Use this aggressively.** Route all reads of:
