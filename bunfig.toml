@@ -1,0 +1,10 @@
+# Bun runtime config — keep `bun test` scoped to our own tests/, not vendor.
+#
+# Without this, `bun test` recurses into vendor/anthropic/* submodules and runs
+# their internal test suites. Those suites assume their own dependency trees
+# and fail noisily here. We never want to run them from this repo.
+
+[test]
+# Discover tests only under tests/ (relative to repo root). Submodules and
+# node_modules are still ignored by Bun by default.
+root = "tests"
