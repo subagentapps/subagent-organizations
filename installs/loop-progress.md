@@ -100,6 +100,16 @@ iteration appends to / updates this file.
                                     branch: feat/kb-parity-and-loop-plan (PR #4)
                                     Phase C partial: 7+9 done; 8+10 gated on cross-org write.
                                     Pivoting to Phase D (prompt collection — repo-local).
+
+[iteration 8] 19:30 PST 2026-04-25 — Phase D.11: prompts collection
+                                    ✓ created installs/prompts/README.md (frontmatter spec + index)
+                                    ✓ 9-key frontmatter format: name, intent, version, last-tested,
+                                      model-card-target, description, chains-to, inputs, output-shape
+                                    ✓ versioning policy: PATCH/MINOR/MAJOR semver + last-tested freshness
+                                    ✓ prepended frontmatter to installs/loop-prompt.md (canonical)
+                                    ✓ prepended frontmatter to installs/superpowers-install.md
+                                    ✓ kept files at original paths (cron job stable references)
+                                    branch: feat/kb-parity-and-loop-plan (PR #4)
 ```
 
 ## Blockers

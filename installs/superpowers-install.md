@@ -1,3 +1,13 @@
+---
+name: superpowers-install
+intent: Deterministic install plan for the obra/superpowers skill bundle (SDLC-focused, MIT)
+version: 0.1.0
+last-tested: 2026-04-25
+model-card-target: claude-sonnet-4-6 (medium)
+description: Source-of-truth for installing Jesse Vincent's superpowers skill bundle. Run only when the user invokes /plugin install superpowers; this plan is the deterministic recipe.
+output-shape: filesystem state (skills installed) + a brief verification report
+---
+
 # Superpowers install plan
 
 Date: 2026-04-26 · Companion to: [`./tier-2-installs.md`](./tier-2-installs.md)

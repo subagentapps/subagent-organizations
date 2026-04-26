@@ -1,3 +1,14 @@
+---
+name: loop-prompt
+intent: Autonomous /loop driver — single source of truth for the 24-iteration dogfood cycle
+version: 0.1.0
+last-tested: 2026-04-25
+model-card-target: claude-opus-4-7[1m] (xhigh)
+description: This file is read by every cron firing to determine the next unfinished task in the dogfood cycle. The cron prompt itself is short; this file holds the actual plan.
+chains-to: [dogfood-cycle, test-stub-author, spec-to-impl]
+output-shape: one self-contained PR per iteration, plus a row in installs/loop-progress.md
+---
+
 # `/loop` prompt — autonomous knowledge-opus orchestrator
 
 Date kicked off: **2026-04-25 18:31 PST → 20:31 PST** (2-hour window)
