@@ -65,6 +65,16 @@ iteration appends to / updates this file.
                                       skips vendor submodule pollution (was 715 noisy tests, now 69 clean)
                                     ✓ aggregate: 2 pass / 67 todo / 0 fail across both skeletons
                                     branch: feat/kb-parity-and-loop-plan (PR #4)
+
+[iteration 5] 19:11 PST 2026-04-25 — Phase B.6: cli-parity-contracts spec
+                                    ✓ wrote docs/spec/cli-parity-contracts.md (275 lines)
+                                    ✓ 12 contracts: 4 productivity + 8 product-management
+                                    ✓ each contract: upstream source, command, IO contract,
+                                      connector dependency, deviations, out-of-scope, test mapping
+                                    ✓ Big-3 + Out-of-scope-7 connector resolution table
+                                    ✓ Bun tests still 2 pass / 67 todo / 0 fail / 88ms
+                                    branch: feat/kb-parity-and-loop-plan (PR #4)
+                                    Phase B complete. Phase C next (live-artifact GitHub Projects).
 ```
 
 ## Blockers
