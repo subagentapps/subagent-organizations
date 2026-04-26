@@ -338,11 +338,81 @@ Patch to `.lsp.json` (in a fork/local plugin):
 sanity-check the scraped HTML for malformed structure before we hand it to a converter.
 Inside the eventual KB markdown content, we don't ship HTML; markdown LSP carries the day.
 
+### GraphQL LSP — recommend installing
+
+The KB-children polyrepo will eventually have GraphQL schemas (Anthropic exposes them in
+some areas; some MCP servers ship `.graphql` files; you may build internal tools).
+
+| Option | Source | Status |
+|---|---|---|
+| **`graphql-language-service-cli`** (`graphql-lsp` binary) | `graphql/graphiql` monorepo (the original `graphql/graphql-language-service` is now archived but the LSP CLI moved into the GraphiQL repo and ships as `graphql-language-service-cli` on npm) | Canonical; npm-installable |
+| `pgai` / others | smaller forks | skip |
+
+```bash
+npm install -g graphql-language-service-cli
+which graphql-lsp   # should resolve under ~/.nvm/.../bin/
+```
+
+`.lsp.json` block:
+```json
+{
+  "graphql": {
+    "command": "graphql-lsp",
+    "args": ["server", "-m", "stream"],
+    "extensionToLanguage": {
+      ".graphql": "graphql",
+      ".gql": "graphql"
+    }
+  }
+}
+```
+
+GraphQL LSP needs a `.graphqlrc` at the repo root pointing at the schema (`schema: ./schema.graphql`)
+to resolve types — without it, it falls back to syntax-only checks.
+
+### Postgres / SQL LSP — already done at the local-plugin layer
+
+You already have a private repo, **`managedsubagents/sqls-lsp`**, mirrored locally at
+`~/.claude/plugins/local/sqls-lsp/`. Same pattern as polyglot-lsp: wraps the upstream `sqls`
+binary with a Claude Code plugin manifest, scoped to Neon Postgres.
+
+| Project | Path | What it provides |
+|---|---|---|
+| **`managedsubagents/sqls-lsp`** | `~/.claude/plugins/local/sqls-lsp/` | Schema-aware completions + diagnostics for `.sql` files against Neon Postgres |
+| Upstream binary | `sqls` from `lighttiger2505/sqls` (Go) | The actual LSP this plugin configures |
+| Alternative if/when sqls falls behind | `gmr/postgres-lsp` (Rust, March 2026) | Newer; tracks PostgreSQL+PL/pgSQL specifically; small star count → wait until proven |
+
+Verify locally:
+```bash
+ls ~/.claude/plugins/local/sqls-lsp/.claude-plugin/plugin.json   # plugin manifest
+which sqls                                                       # binary expected on PATH
+```
+
+If the binary isn't on PATH:
+```bash
+brew install sqls           # Go-based; macOS-native
+```
+
+Net coverage after these additions:
+
+| Language | Server | Wired via | Binary present |
+|---|---|---|---|
+| TypeScript | typescript-language-server | `typescript-lsp` (official) | ✅ |
+| Markdown | marksman | polyglot-lsp | ✅ |
+| HTML/CSS | vscode-html-language-server | (gap to fill) | ❌ — install `vscode-langservers-extracted` |
+| GraphQL | graphql-lsp | (gap to fill) | ❌ — install `graphql-language-service-cli` |
+| Postgres SQL | sqls | `sqls-lsp` (your local plugin) | needs `brew install sqls` |
+| TOML | taplo | polyglot-lsp | unknown |
+| YAML | yaml-language-server | polyglot-lsp | unknown |
+| Dockerfile | docker-langserver | polyglot-lsp | unknown |
+| Prose | harper-ls | polyglot-lsp | unknown |
+
 ### Why not chase pyright/rust/etc. right now
 
 You'd install language LSPs based on the language you actually code in. For a meta-repo
-holding TypeScript primitives + markdown docs, **the TS + Markdown + HTML trio is the right
-bundle**. Add Python/Rust on demand if/when a child KB ships scripts in those languages.
+holding TypeScript primitives + markdown docs, **the TS + Markdown + HTML + GraphQL + SQL
+quintet is the right bundle for "developer KB on Max plan, polyrepo, business-running"
+workflow**. Add Python/Rust on demand if/when a child KB ships scripts in those languages.
 
 ### Concrete action checklist
 
@@ -350,14 +420,21 @@ bundle**. Add Python/Rust on demand if/when a child KB ships scripts in those la
 # 1. Install the official typescript-lsp plugin (binary already on PATH)
 #    Inside Claude Code: /plugin install typescript-lsp@claude-plugins-official
 
-# 2. Install the HTML language server binary
+# 2. Install the HTML/CSS language server binaries
 npm install -g vscode-langservers-extracted
 
-# 3. Either fork polyglot-lsp to add the html block above, OR create a small
-#    local plugin in ~/.claude/plugins/local/html-lsp/ with .lsp.json
+# 3. Install the GraphQL language server binary
+npm install -g graphql-language-service-cli
 
-# 4. Verify the LSP tool activates: open any .md or .html file in a CC session
-#    and confirm a "LSP active" indicator
+# 4. Install the Postgres SQL LSP binary (sqls-lsp plugin already configured)
+brew install sqls
+
+# 5. Either fork polyglot-lsp to add html/graphql blocks, OR create a small
+#    local plugin in ~/.claude/plugins/local/{html,graphql}-lsp/ with .lsp.json
+#    each. Same .lsp.json schema as the official plugins.
+
+# 6. Verify the LSP tool activates: open any .md / .html / .graphql / .sql
+#    file in a CC session and confirm an "LSP active" indicator
 ```
 
 ---
