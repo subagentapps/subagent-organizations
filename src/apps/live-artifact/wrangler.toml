@@ -1,0 +1,27 @@
+# Cloudflare Pages config for subagent-organizations live-artifact dashboard.
+#
+# Spec: docs/spec/frontend/cloudflare-pages.md
+# Three-env staging: docs/spec/frontend/three-env-staging.md
+#
+# Deploy via `wrangler pages deploy dist --project-name=subagent-organizations`
+# (the package.json `deploy` script wraps this).
+#
+# This file is the SOURCE OF TRUTH for the project name + build output dir.
+# The Cloudflare account binding is configured separately by the user via
+# `wrangler login` (account creation = CLAUDE.md gate; not auto).
+
+name = "subagent-organizations"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-04-01"
+
+# Environments per docs/spec/frontend/three-env-staging.md:
+#   prod    -> subagentorganizations.com
+#   staging -> staging.subagentorganizations.com
+#   preview -> auto-generated *.pages.dev URLs per branch
+#
+# Cloudflare Secret Store binding (per #10 issue body):
+#   account: e6294e3ea89f8207af387d459824aaae
+#   store:   565244614fc34be7aa8488ce46112f60
+# Bindings configured per-environment via the Cloudflare dashboard or
+# `wrangler pages secret put` post-deploy. NOT committed to this repo
+# (CLAUDE.md gate: secrets in non-`.env*` files).
