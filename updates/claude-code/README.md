@@ -7,8 +7,17 @@ Two parallel artifacts per week:
 
 The Downloads folder you copied in (`/Users/alexzh/Downloads/code-claude-docs-whats-new/`)
 contained the **authoring source** for weeks 13, 14, and 15, plus 15 screenshots and two
-support files (`authoring.json` for a `doc-scout` subagent, `sdk-author.md` for SDK-author
-posture).
+support files. Those two support files were misplaced in the digest folder and have been
+moved to canonical locations:
+
+- `authoring.json` — was a JSON blob defining a `doc-scout` subagent; now reshaped as a
+  proper Claude Code subagent definition at [`../../.claude/agents/doc-scout.md`](../../.claude/agents/doc-scout.md)
+- `sdk-author.md` — `--append-system-prompt` file; moved to
+  [`../../.claude/prompts/sdk-author.md`](../../.claude/prompts/sdk-author.md)
+
+A new lead-orchestrator subagent at [`../../.claude/agents/repo-orchestrator.md`](../../.claude/agents/repo-orchestrator.md)
+ties the whole posture together — see it for the session-start prompt that's pre-loaded
+with this repo's state and the lead-orchestrator pattern.
 
 ## Layout
 
@@ -16,8 +25,6 @@ posture).
 updates/claude-code/
 ├── README.md                           ← this file
 ├── INDEX.md                            ← SHA-pinned mapping: each week → upstream URL + content SHA
-├── authoring.json                      ← doc-scout subagent definition (drives digest authoring)
-├── sdk-author.md                       ← --append-system-prompt for SDK authoring posture
 ├── 2026-w13/
 │   ├── digest.md                       ← authoring prompt (from Downloads)
 │   ├── README.md                       ← orientation (was here from earlier session)
