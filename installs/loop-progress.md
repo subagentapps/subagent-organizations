@@ -55,6 +55,16 @@ iteration appends to / updates this file.
                                     ✓ pinned to platform.claude.com/.../develop-tests.md eval principles
                                     ✓ bun test passes (Bun 1.3.11)
                                     branch: feat/kb-parity-and-loop-plan (PR #4)
+
+[iteration 4] 19:05 PST 2026-04-25 — Phase B.5: product-management-cli test skeleton
+                                    ✓ wrote tests/cli/product-management-cli.test.ts (8 skill suites + connector)
+                                    ✓ 43 todo + 1 pass; 7 type contracts exported (PrdShape, RoadmapFormat,
+                                      StakeholderAudience, CompetitiveBriefShape, ResearchSynthesisShape,
+                                      SprintPlanShape, PmSkillName)
+                                    ✓ added bunfig.toml [test] root="tests" — scopes bun test to repo,
+                                      skips vendor submodule pollution (was 715 noisy tests, now 69 clean)
+                                    ✓ aggregate: 2 pass / 67 todo / 0 fail across both skeletons
+                                    branch: feat/kb-parity-and-loop-plan (PR #4)
 ```
 
 ## Blockers
