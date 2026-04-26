@@ -82,25 +82,28 @@ Your job:
 
 ### Trigger 2 — scheduled refresh
 
-Per cadence in `docs/spec/subagentmcp-sdk/knowledge-base/README.md`:
+Per cadence in `docs/spec/subagentmcp-sdk/knowledge-base/README.md` and the per-source
+spec at [`docs/spec/subagentmcp-sdk/knowledge-base/refresh-routine.md`](../../docs/spec/subagentmcp-sdk/knowledge-base/refresh-routine.md):
 
-| Source | Cadence (hours) |
-|---|---|
-| code.claude.com/docs/llms.txt | 24 |
-| platform.claude.com/llms.txt | 24 |
-| modelcontextprotocol.io/llms.txt | 24 |
-| claude.com/sitemap.xml | 24 |
-| anthropic.com/sitemap.xml | 168 |
-| platform.claude.com/sitemap.xml | 24 |
-| support.claude.com/sitemap.xml | 72 |
-| modelcontextprotocol.io/sitemap.xml | 24 |
-| npm anthropic-ai catalog | 6 |
-| npm modelcontextprotocol catalog | 6 |
-| GitHub anthropics/ org | 12 |
-| GitHub modelcontextprotocol/ org | 12 |
+| Source | Cadence (hours) | Reader |
+|---|---|---|
+| code.claude.com/docs/llms.txt | 24 | subagent-md |
+| platform.claude.com/llms.txt | 24 | subagent-md |
+| modelcontextprotocol.io/llms.txt | 24 | subagent-md |
+| claude.com/sitemap.xml | 24 | subagent-xml |
+| anthropic.com/sitemap.xml | 168 | subagent-xml |
+| platform.claude.com/sitemap.xml | 24 | subagent-xml |
+| support.claude.com/sitemap.xml | 72 | subagent-xml |
+| modelcontextprotocol.io/sitemap.xml | 24 | subagent-xml |
+| npm anthropic-ai catalog | 6 | curl + jq |
+| npm modelcontextprotocol catalog | 6 | curl + jq |
+| GitHub anthropics/ org | 12 | gh GraphQL |
+| GitHub modelcontextprotocol/ org | 12 | gh GraphQL |
+| **Anthropic jobs board** | **24** | **curl + JSON** (per [`anthropic-jobs-source.md`](../../docs/spec/subagentmcp-sdk/knowledge-base/anthropic-jobs-source.md)) |
 
-Run via the planned `scripts/refresh-kb.ts` (not yet implemented; until it ships, refresh
-manually when invoked).
+Run via per-source RemoteTrigger routines named `kb-refresh-<source-slug>`, scheduled
+per the cadence-to-cron mapping in `refresh-routine.md`. Until those routines are
+created, refresh manually when invoked.
 
 ### Trigger 3 — explicit invocation
 
