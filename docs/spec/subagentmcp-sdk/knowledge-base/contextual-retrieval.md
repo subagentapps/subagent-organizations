@@ -174,6 +174,28 @@ lexicalScore, fusedScore, rerankerScore }` for the top-20.
 build time). Reranker scores chunks in parallel, but it's an extra round
 trip. Not free, but worth it: 49% → 67% retrieval improvement.
 
+**Implementation notes (2026-04-26, closes #79):**
+- Plain `fetch` against `https://api.cohere.ai/v2/rerank` — no Cohere SDK
+  dep. Auth via `Bearer ${COHERE_API_KEY}` (or `opts.apiKey` override).
+- **Fail-open**: missing key, HTTP non-2xx, network throw, or malformed
+  payload all return the input order truncated to `topN` with
+  `rerankerScore: null`. Same iter-24 parry-scan precedent: ship the
+  HTTP integration with offline-fallback, the user creates the Cohere
+  account whenever they need rerank quality, the runtime activates the
+  Cohere path automatically when the token appears.
+- Decoupled from #75 chunker / #76 contextualizer via the `ChunkTextLookup`
+  interface — the reranker doesn't know how chunks are stored or whether
+  they've been contextualized. Tests stub freely.
+- **Document body sent to Cohere**: `${contextPreamble}\n\n${text}` when
+  the chunk has been contextualized; bare `text` otherwise. Matches the
+  blog's recommendation that the contextualized form is what gets ranked.
+- Determinism: same query + same candidates + same Cohere response →
+  same `RerankedChunk[]`. The fail-open path is also deterministic
+  (preserves input order).
+- Callers detect fallback by checking `result.some(r => r.rerankerScore === null)`
+  — no separate `via` field needed since the absence of a score IS the
+  signal.
+
 ## End-to-end interface
 
 ```ts
