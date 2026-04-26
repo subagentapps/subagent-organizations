@@ -48,6 +48,13 @@ iteration appends to / updates this file.
                                     ✓ proposed Connector primitive shape for subagentmcp-sdk
                                     branch: feat/kb-parity-and-loop-plan (PR #4)
                                     Phase A complete. Phase B next (test stubs).
+
+[iteration 3] 18:59 PST 2026-04-25 — Phase B.4: productivity-cli test skeleton
+                                    ✓ wrote tests/cli/productivity-cli.test.ts (4 skill suites + connector + sanity)
+                                    ✓ 24 todo + 1 pass; 5 type contracts exported
+                                    ✓ pinned to platform.claude.com/.../develop-tests.md eval principles
+                                    ✓ bun test passes (Bun 1.3.11)
+                                    branch: feat/kb-parity-and-loop-plan (PR #4)
 ```
 
 ## Blockers
