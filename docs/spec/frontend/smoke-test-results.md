@@ -41,23 +41,24 @@ keyboard navigation across all interactive elements; focus rings visible (1px te
 
 Per design-brief: "<100 KB gzipped (excluding lucide-react icons used)".
 
-The dependency footprint is intentionally small:
+**Measured** via `bun run build` on 2026-04-26 (PR G #104):
 
-| Package | Approximate gzipped | Note |
+| Asset | Raw | Gzipped |
 |---|---|---|
-| react + react-dom | ~45 KB | React 19 |
-| wouter | ~2 KB | hook-based router |
-| marked | ~12 KB | markdown |
-| dompurify | ~9 KB | sanitizer |
-| lucide-react | per-icon, tree-shaken | `ExternalLink` + `ChevronDown` + `ChevronRight` + `Activity` |
+| `dist/index.html` | 0.67 KB | 0.38 KB |
+| `dist/assets/react-*.js` | 3.94 KB | 1.55 KB |
+| `dist/assets/icons-*.js` | 9.76 KB | 3.69 KB |
+| `dist/assets/index-*.js` (app + deps) | 183.62 KB | 57.96 KB |
+| **Total gzipped** | | **~63.6 KB** |
 
-Estimated total (app code + deps, gzipped, excluding tree-shaken icons):
-**~75 KB**. Well under the 100 KB target. To verify after `bun install`:
+**63.6 KB gzipped — 36% under the 100 KB target.** ✅
+
+Build command + reproduce:
 
 ```bash
 cd src/apps/live-artifact
+bun install
 bun run build
-# Check dist/assets/*.js sizes
 ls -la dist/assets/
 ```
 

@@ -6,3 +6,8 @@ dist/
 .env.*
 !.env.example
 .wrangler/
+# tsc -b emits these alongside vite.config.ts since it's a project ref;
+# they're regenerated on every build. Keep the source ts but ignore output.
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js
