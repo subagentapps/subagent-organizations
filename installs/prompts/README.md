@@ -79,6 +79,7 @@ prompt should be re-validated before relying on it.
 | [`./frontend-deploy.md`](./frontend-deploy.md) | Deploy live-artifact dashboard to Cloudflare Pages on subagentorganizations.com | 0.1.0 | never | `claude-sonnet-4-6 (medium)` |
 | [`./research-contextual-retrieval.md`](./research-contextual-retrieval.md) | Deep-read Anthropic contextual-retrieval blog + cookbook; vendor anthropics/cookbook | 0.1.0 | never | `claude-sonnet-4-6 (medium)` |
 | [`./expand-kb-sources.md`](./expand-kb-sources.md) | Expand kb-keeper source catalog (sitemaps, llms.txt, jobs) using vendored subagentapps tools | 0.1.0 | never | `claude-sonnet-4-6 (medium)` |
+| [`./github-pat-fine-grained.md`](./github-pat-fine-grained.md) | Create or rotate a fine-grained GitHub PAT via Chrome MCP — encodes 7 lessons from the first run | 0.1.0 | 2026-04-25 (admin@jadecli.com) | `claude-sonnet-4-6 (medium)` |
 
 > Note: `loop-prompt.md` and `superpowers-install.md` live in `installs/` (not
 > `installs/prompts/`) because the cron job and install scripts reference them
