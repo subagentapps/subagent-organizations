@@ -145,7 +145,21 @@ results, return top-150 candidates.
 **Why 150 not 20**: blog says reranker reads 150, picks 20. The fan-out
 size is THIS layer's output, the trim-to-20 happens in piece 5.
 
-### 5. Reranker — `kb/reranker.ts`
+**Implementation notes (2026-04-26, closes #78):**
+- Pure function — no I/O, no randomness. `fuseRankings(dense, lexical, opts?)`
+  is the synchronous core; `retrieve(query, denseIdx, lexicalIdx, opts?)`
+  is the async dispatcher that runs both indexes in parallel via
+  `Promise.all`.
+- Decoupled from the embedder/BM25 implementations (#77) via the
+  `IndexQuerier` interface — any index that returns `RankedHit[]` for a
+  query plugs in. Tests stub freely; production wires Voyage AI +
+  tsvector or in-memory BM25.
+- **Tie-breaker**: equal `fusedScore` → higher dense score wins; equal
+  dense → higher lexical wins; all-tied → lexicographic chunkId order.
+  Deterministic so the eval harness in #80 produces reproducible top-20
+  lists across runs.
+- Defaults match the blog: `k=60`, `topN=150`, `perIndexTopN=150`.
+  All overridable via `RetrieveOptions`.
 
 **Responsibility:** rerank top-150 candidates → top-20 final chunks.
 
