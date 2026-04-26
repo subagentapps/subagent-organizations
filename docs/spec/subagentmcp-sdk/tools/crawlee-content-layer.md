@@ -50,6 +50,36 @@ HTMLReadResult                    → returned to caller
 
 ## Bloom filter design
 
+**Implementation note (2026-04-26):** the original spec called for the
+`bloom-filters` npm package + `better-sqlite3`. We replaced both:
+
+- **Bloom filter**: zero-dep, ~80 LOC inline in `_bloom-cache.ts`. A bloom
+  filter is a deterministic algorithm; FNV-1a + DJB2 derive two 32-bit
+  hashes, double-hashing produces the k indices. For a "TypeScript reference
+  catalog" SDK, the npm dep would 2× install size for one class with
+  4 methods.
+- **SQLite**: `bun:sqlite` (built-in to Bun) instead of `better-sqlite3`.
+  The two APIs are similar enough that a Node port would be mechanical:
+  `import { Database } from 'bun:sqlite'` → `import Database from 'better-sqlite3'`.
+
+**Reload safety.** The constructor rebuilds the bloom from SQLite on every
+open, so a process restart keeps dedup state. Cost: ~50ms full-table scan
+at 100k entries.
+
+**Schema:**
+
+```sql
+CREATE TABLE entries (
+  key TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,    -- JSON-serialized BloomEntry
+  fetched_at TEXT NOT NULL  -- ISO8601, redundant with payload but indexable
+);
+CREATE INDEX idx_entries_fetched_at ON entries(fetched_at);
+```
+
+The `fetched_at` index is for future TTL eviction; the bloom layer doesn't
+need it.
+
 Why bloom, not a hash set:
 
 - **Memory**: a hash set of 100k SHA-256s is ~3 MB; a bloom filter for 100k items at 1%

@@ -8,7 +8,7 @@
  * `tokenPath` so these tests run offline and don't depend on any HF account.
  */
 
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,7 +17,14 @@ import {
   classify,
   scan,
   __clearScanCacheForTests,
+  __setScanCachePathForTests,
 } from '../../src/subagentmcp-sdk/tools/_parry-scan.ts';
+
+// Redirect the bloom cache to :memory: so tests never write to the real
+// ~/.cache path. Done once before any test runs.
+beforeAll(() => {
+  __setScanCachePathForTests(':memory:');
+});
 
 afterEach(() => {
   __clearScanCacheForTests();
