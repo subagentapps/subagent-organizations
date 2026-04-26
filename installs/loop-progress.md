@@ -86,6 +86,20 @@ iteration appends to / updates this file.
                                     ✓ blocker noted: org Projects v2 needs read:project scope
                                       (workaround: gh auth refresh -s read:project,project)
                                     branch: feat/kb-parity-and-loop-plan (PR #4)
+
+[iteration 7] 19:24 PST 2026-04-25 — Phase C.9: Projects schema spec
+                                    ✓ wrote docs/spec/projects-schema.md (200 lines)
+                                    ✓ 5 Projects (1 per plugin) at org level
+                                    ✓ 5 custom fields: Status (6 opts), Priority (4), Wave (4),
+                                      Effort (5 t-shirt), Plugin (7)
+                                    ✓ 3 views per project: Board, Wave-0 Backlog, Roadmap
+                                    ✓ 3 milestones (Wave 0/1/2 with due dates 2026-06/09/12)
+                                    ✓ TypeScript discriminated union for kwpc-schema package
+                                    ✓ Phase C.8 + C.10 explicitly deferred (cross-org write gate)
+                                    ✓ aligned with bcherny Live Artifacts definition
+                                    branch: feat/kb-parity-and-loop-plan (PR #4)
+                                    Phase C partial: 7+9 done; 8+10 gated on cross-org write.
+                                    Pivoting to Phase D (prompt collection — repo-local).
 ```
 
 ## Blockers
