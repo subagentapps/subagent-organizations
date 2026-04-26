@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<api version="3.0.0">
+  <info>
+    <title>Sample API</title>
+    <version>1.0.0</version>
+  </info>
+  <paths>
+    <path uri="/users" method="GET" />
+    <path uri="/users/{id}" method="GET" />
+    <path uri="/users" method="POST" />
+  </paths>
+</api>
