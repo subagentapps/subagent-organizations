@@ -17,7 +17,8 @@
     "build": "tsup",
     "test": "bun test",
     "render": "bun run scripts/render.ts",
-    "verify": "bun run scripts/verify.ts"
+    "verify": "bun run scripts/verify.ts",
+    "parity-check": "bun run src/parity/check.ts"
   },
   "engines": {
     "node": ">=20"
