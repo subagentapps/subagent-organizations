@@ -1,0 +1,149 @@
+{
+  "generatedAt": "2026-04-26T08:00:00Z",
+  "issues": [
+    {
+      "number": 10,
+      "title": "deploy live-artifact dashboard to subagentorganizations.com via Cloudflare Pages",
+      "repo": "subagentapps/subagent-organizations",
+      "plugin": "meta-repo",
+      "status": "In Progress",
+      "priority": "P1",
+      "wave": "Wave 0",
+      "effort": "XL",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/subagent-organizations/issues/10"
+    },
+    {
+      "number": 96,
+      "title": "scaffold src/apps/live-artifact/ — Phase A of #10",
+      "repo": "subagentapps/subagent-organizations",
+      "plugin": "meta-repo",
+      "status": "Done",
+      "priority": "P1",
+      "wave": "Wave 0",
+      "effort": "M",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/subagent-organizations/pull/96"
+    },
+    {
+      "number": 98,
+      "title": "SPA shell + 4 stub routes + Field animation (PR A of #10)",
+      "repo": "subagentapps/subagent-organizations",
+      "plugin": "meta-repo",
+      "status": "Done",
+      "priority": "P1",
+      "wave": "Wave 0",
+      "effort": "M",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/subagent-organizations/pull/98"
+    },
+    {
+      "number": 99,
+      "title": "MarkdownBody + ADR + Changelog routes (PR B of #10)",
+      "repo": "subagentapps/subagent-organizations",
+      "plugin": "meta-repo",
+      "status": "Done",
+      "priority": "P1",
+      "wave": "Wave 0",
+      "effort": "M",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/subagent-organizations/pull/99"
+    },
+    {
+      "number": 3,
+      "title": "dual-write task-add → TASKS.md + GitHub Issue with issueRef bridge",
+      "repo": "subagentapps/knowledge-work-plugins-cli",
+      "plugin": "productivity-cli",
+      "status": "Todo",
+      "priority": "P0",
+      "wave": "Wave 0",
+      "effort": "L",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/knowledge-work-plugins-cli/issues/3"
+    },
+    {
+      "number": 2,
+      "title": "implement first 3 todo-tests in tests/cli/productivity-cli.test.ts",
+      "repo": "subagentapps/knowledge-work-plugins-cli",
+      "plugin": "productivity-cli",
+      "status": "Todo",
+      "priority": "P1",
+      "wave": "Wave 0",
+      "effort": "M",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/knowledge-work-plugins-cli/issues/2"
+    },
+    {
+      "number": 4,
+      "title": "implement product-management-cli /write-spec skill",
+      "repo": "subagentapps/knowledge-work-plugins-cli",
+      "plugin": "product-management-cli",
+      "status": "Todo",
+      "priority": "P1",
+      "wave": "Wave 1",
+      "effort": "L",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/knowledge-work-plugins-cli/issues/4"
+    },
+    {
+      "number": 88,
+      "title": "engineering-cli — stack-check skill spec",
+      "repo": "subagentapps/subagent-organizations",
+      "plugin": "engineering-cli",
+      "status": "Done",
+      "priority": "P2",
+      "wave": "Wave 1",
+      "effort": "S",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/subagent-organizations/issues/88"
+    },
+    {
+      "number": 89,
+      "title": "engineering-cli — architecture-review skill spec",
+      "repo": "subagentapps/subagent-organizations",
+      "plugin": "engineering-cli",
+      "status": "Done",
+      "priority": "P2",
+      "wave": "Wave 1",
+      "effort": "S",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/subagent-organizations/issues/89"
+    },
+    {
+      "number": 90,
+      "title": "engineering-cli — incident-postmortem skill spec",
+      "repo": "subagentapps/subagent-organizations",
+      "plugin": "engineering-cli",
+      "status": "Done",
+      "priority": "P2",
+      "wave": "Wave 1",
+      "effort": "S",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/subagent-organizations/issues/90"
+    },
+    {
+      "number": 32,
+      "title": "implement contextual-retrieval KB layer (5 pieces + eval)",
+      "repo": "subagentapps/subagent-organizations",
+      "plugin": "meta-repo",
+      "status": "Done",
+      "priority": "P1",
+      "wave": "Wave 1",
+      "effort": "XL",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/subagent-organizations/issues/32"
+    },
+    {
+      "number": 5,
+      "title": "implement product-management-cli /sprint-planning",
+      "repo": "subagentapps/knowledge-work-plugins-cli",
+      "plugin": "product-management-cli",
+      "status": "Todo",
+      "priority": "P2",
+      "wave": "Wave 1",
+      "effort": "M",
+      "assignee": null,
+      "url": "https://github.com/subagentapps/knowledge-work-plugins-cli/issues/5"
+    }
+  ]
+}

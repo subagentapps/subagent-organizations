@@ -1,0 +1,16 @@
+.grid {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  width: 100%;
+  /* Allow horizontal scroll when columns overflow on narrow viewports */
+  overflow-x: auto;
+  padding-bottom: var(--space-4);
+}
+
+@media (max-width: 768px) {
+  .grid {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+}
