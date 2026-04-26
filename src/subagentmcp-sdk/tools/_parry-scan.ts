@@ -32,6 +32,7 @@ import type {
   ParryThresholds,
 } from './types.ts';
 import { sha256 } from './types.ts';
+import { BloomCache, type BloomEntry } from './_bloom-cache.ts';
 
 const DEFAULT_SUSPICIOUS = 0.3;
 const DEFAULT_MALICIOUS = 0.8;
@@ -98,11 +99,63 @@ type Fetcher = (
 ) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 /**
- * Module-level cache. Keyed by `${contentHash}:${suspicious}:${malicious}`.
- * The threshold portion of the key is for forward-compat with the bloom-cache
- * design in #24, which records the original score, not just the label.
+ * Persistent cache backed by `_bloom-cache.ts` (#24). Keyed by
+ * `${contentHash}:${suspicious}:${malicious}`. The threshold portion of the
+ * key isolates callers using non-default thresholds — recompute, don't share.
+ *
+ * The bloom-cache stores `BloomEntry`, but we need to round-trip a
+ * `ParryScanResult`. We pack `{ score, via }` into the entry's
+ * `parryScore` + `markdown` fields:
+ *   - `kind: 'content'`, `parryScore`, `markdown`=via — for SAFE/SUSPICIOUS API hits
+ *   - `kind: 'blocked'`, `reason`='prompt_injection' — for MALICIOUS
+ *
+ * Cache initialization is **lazy** so importing this module does not open a
+ * SQLite file on disk. Tests that don't exercise the cache stay fast.
  */
-const inMemoryCache = new Map<string, ParryScanResult>();
+let cacheInstance: BloomCache | null = null;
+let cacheDbPath: string | undefined; // undefined = use default path
+
+function getCache(): BloomCache {
+  if (cacheInstance === null) {
+    cacheInstance = new BloomCache(
+      cacheDbPath !== undefined ? { dbPath: cacheDbPath } : undefined,
+    );
+  }
+  return cacheInstance;
+}
+
+function packToEntry(r: ParryScanResult): BloomEntry {
+  if (r.label === 'MALICIOUS') {
+    return {
+      kind: 'blocked',
+      reason: 'prompt_injection',
+      parryScore: r.score,
+      fetchedAt: new Date().toISOString(),
+    };
+  }
+  return {
+    kind: 'content',
+    markdown: r.via, // doubles as the via marker
+    parryScore: r.score,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+function unpackFromEntry(e: BloomEntry, thresholds?: ParryThresholds): ParryScanResult {
+  if (e.kind === 'blocked') {
+    return {
+      label: 'MALICIOUS',
+      score: e.parryScore ?? 1.0,
+      via: 'api',
+    };
+  }
+  const score = e.parryScore ?? 0;
+  return {
+    label: classify(score, thresholds),
+    score,
+    via: e.markdown === 'api' ? 'api' : 'stub',
+  };
+}
 
 export interface ScanOptions {
   thresholds?: ParryThresholds;
@@ -163,8 +216,9 @@ export async function scan(
   const cacheKey = `${contentHash}:${sus}:${mal}`;
 
   if (!opts?.__skipCache) {
-    const cached = inMemoryCache.get(cacheKey);
-    if (cached) return cached;
+    const cache = getCache();
+    const cachedEntry = cache.get(cacheKey);
+    if (cachedEntry) return unpackFromEntry(cachedEntry, opts?.thresholds);
   }
 
   const doFetch: Fetcher = opts?.__fetch ?? (fetch as unknown as Fetcher);
@@ -182,20 +236,20 @@ export async function scan(
     if (!res.ok) {
       const fallback: ParryScanResult = { label: 'SAFE', score: 0, via: 'stub' };
       // Cache the fail-open verdict so we don't hammer a broken HF endpoint.
-      inMemoryCache.set(cacheKey, fallback);
+      getCache().put(cacheKey, packToEntry(fallback));
       return fallback;
     }
     const payload = (await res.json()) as unknown;
     const extracted = extractInjectionScore(payload);
     if (extracted === null) {
       const fallback: ParryScanResult = { label: 'SAFE', score: 0, via: 'stub' };
-      inMemoryCache.set(cacheKey, fallback);
+      getCache().put(cacheKey, packToEntry(fallback));
       return fallback;
     }
     score = extracted;
   } catch {
     const fallback: ParryScanResult = { label: 'SAFE', score: 0, via: 'stub' };
-    inMemoryCache.set(cacheKey, fallback);
+    getCache().put(cacheKey, packToEntry(fallback));
     return fallback;
   }
 
@@ -204,14 +258,33 @@ export async function scan(
     score,
     via: 'api',
   };
-  inMemoryCache.set(cacheKey, result);
+  getCache().put(cacheKey, packToEntry(result));
   return result;
 }
 
 /**
- * Test-only: clear the in-memory cache. Production code should never call
- * this; the bloom cache (#24) is the proper invalidation point.
+ * Test-only: reset the bloom cache (in-memory + on-disk).
+ *
+ * Production code should let cache entries age out via fetch-time logic
+ * once that's added; tests use this to start with a clean slate so dedup
+ * across tests doesn't mask real changes.
  */
 export function __clearScanCacheForTests(): void {
-  inMemoryCache.clear();
+  if (cacheInstance) {
+    cacheInstance.reset();
+  }
+}
+
+/**
+ * Test-only: redirect the bloom cache at a non-default path (typically
+ * `:memory:`). Must be called before the first `scan()`. If called after
+ * the cache has been opened, closes the existing handle and reopens at
+ * the new path.
+ */
+export function __setScanCachePathForTests(dbPath: string): void {
+  if (cacheInstance) {
+    cacheInstance.close();
+    cacheInstance = null;
+  }
+  cacheDbPath = dbPath;
 }
