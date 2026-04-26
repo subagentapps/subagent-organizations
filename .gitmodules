@@ -43,3 +43,9 @@
 	url = https://github.com/modelcontextprotocol/ext-apps.git
 	update = none
 	shallow = true
+
+[submodule "vendor/anthropic/knowledge-work-plugins"]
+	path = vendor/anthropic/knowledge-work-plugins
+	url = https://github.com/anthropics/knowledge-work-plugins.git
+	update = none
+	shallow = true
