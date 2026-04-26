@@ -206,3 +206,84 @@ sections written here.
 ---
 
 <!-- Routines append below this line -->
+
+## subagent-xml — survey 2026-04-26 05:00Z (routine v1, blocked)
+
+| Field | Value |
+|---|---|
+| Source | v1 routine `subagentapps-survey-1-subagent-xml` (`run_once_at: 2026-04-26T05:00:00Z`) |
+| Outcome | **partial — MCP scope blocker** |
+| Metadata captured | none — search_repositories did not match |
+| Contents read | denied (session scope = subagent-organizations only) |
+| Resolution | v2 routine `subagentapps-survey-1-subagent-xml-v2` re-fires 2026-04-27T05:00:00Z with target repo in `sources[]` |
+
+## subagent-crawls — survey 2026-04-26 05:02Z (routine v1, blocked)
+
+| Field | Value |
+|---|---|
+| Source | v1 routine (run_once_at 2026-04-26T05:02:00Z) |
+| Outcome | partial — MCP scope blocker |
+| Metadata (via search_repositories) | private; primary_language `Python`; default_branch `main`; pushed_at `2026-04-25T12:26:13Z`; size_kb `2742`; has_issues true; open_issues_count 0 |
+| Contents read | denied — README, tree, CLAUDE.md unverified |
+| Resolution | v2 retry 2026-04-27T05:02:00Z |
+
+## subagents-platform-execution — survey 2026-04-26 05:04Z (routine v1, blocked)
+
+| Field | Value |
+|---|---|
+| Source | v1 routine (run_once_at 2026-04-26T05:04:00Z) |
+| Outcome | partial — MCP scope blocker |
+| Metadata (via search_repositories) | private; primary_language `Python`; default_branch `main`; pushed_at `2026-04-25T12:30:16Z`; size_kb `40`; has_issues true; open_issues_count 1 |
+| Contents read | denied |
+| Resolution | v2 retry 2026-04-27T05:04:00Z |
+
+## warehouse — survey 2026-04-26 05:06Z (routine v1, blocked)
+
+| Field | Value |
+|---|---|
+| Source | v1 routine (run_once_at 2026-04-26T05:06:00Z) |
+| Outcome | partial — MCP scope blocker |
+| Metadata (via search_repositories) | private; primary_language `Python`; default_branch `main`; pushed_at `2026-04-25T12:31:46Z`; size_kb `1387`; has_issues true; open_issues_count 1 |
+| Contents read | denied |
+| Resolution | v2 retry 2026-04-27T05:06:00Z |
+
+## anthropic-docs-scraper — survey 2026-04-26 05:08Z (routine v1, blocked)
+
+| Field | Value |
+|---|---|
+| Source | v1 routine (run_once_at 2026-04-26T05:08:00Z) |
+| Outcome | partial — MCP scope blocker |
+| Metadata (via search_repositories) | private; primary_language `Python`; default_branch `main`; pushed_at `2026-04-25T12:44:50Z`; size_kb `43`; has_issues true; open_issues_count 1 |
+| Contents read | denied |
+| Resolution | v2 retry 2026-04-27T05:08:00Z |
+
+## v1 → v2 migration retrospective (2026-04-26)
+
+**Root cause of v1 blocker.** Routines in `manaflow_ai/cmux`-style cloud
+sessions get a GitHub MCP server scoped to `session_context.sources[]`.
+v1 routines listed only `subagent-organizations` in sources, so cross-repo
+content reads were denied at the MCP server level. Cross-repo *metadata* via
+`search_repositories` still worked because that endpoint operates on the
+public/visible search index, not on per-repo content APIs.
+
+**v2 fix.** Each v2 routine adds the survey target to `sources[]`:
+
+```jsonc
+"sources": [
+  { "git_repository": { "url": "https://github.com/subagentapps/subagent-organizations" } },
+  { "git_repository": { "url": "https://github.com/subagentapps/<target>" } }
+]
+```
+
+This makes the target repo a clone in the cloud workspace, and the GitHub
+MCP server's allow-list expands to include it. Filesystem reads (`ls`,
+`cat README.md`, `head .github/workflows/*.yml`) work without API calls.
+
+**Lesson for future routines.** Any cross-repo work needs every touched repo
+in `sources[]`. Adding it to `mcp_connections[]` won't help — that field is
+for HTTP MCP servers, not for git-clone scope.
+
+**Why we didn't just delete the v1 PRs.** They captured the blocker context
+in detail and proved the MCP scope hypothesis. We close them as superseded
+(not deleted) so the audit trail of "first try → diagnosis → second try"
+stays intact for future orchestrator runs hitting similar boundaries.
