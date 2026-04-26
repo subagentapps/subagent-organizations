@@ -25,3 +25,18 @@
   color: var(--fg);
   font-family: var(--font-mono);
 }
+
+.dataBadge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  padding: 0.0625rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg-muted);
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  cursor: help;
+  vertical-align: 1px;
+}

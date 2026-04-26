@@ -25,3 +25,13 @@ compatibility_date = "2026-04-01"
 # Bindings configured per-environment via the Cloudflare dashboard or
 # `wrangler pages secret put` post-deploy. NOT committed to this repo
 # (CLAUDE.md gate: secrets in non-`.env*` files).
+
+# KV cache binding for /api/projects (per docs/spec/frontend/live-data.md).
+# The user creates the namespace once via `wrangler kv namespace create
+# SUBAGENT_CACHE`; the resulting `id` goes here. Until then, the Pages
+# Function gracefully degrades: cache miss → GitHub fetch → no cache
+# write (the `env.SUBAGENT_CACHE` check in functions/api/projects.ts
+# guards the `.put()`).
+[[kv_namespaces]]
+binding = "SUBAGENT_CACHE"
+id = ""    # placeholder — set via `wrangler kv namespace create SUBAGENT_CACHE`
