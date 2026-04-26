@@ -75,6 +75,17 @@ iteration appends to / updates this file.
                                     ✓ Bun tests still 2 pass / 67 todo / 0 fail / 88ms
                                     branch: feat/kb-parity-and-loop-plan (PR #4)
                                     Phase B complete. Phase C next (live-artifact GitHub Projects).
+
+[iteration 6] 19:18 PST 2026-04-25 — Phase C.7: anthropic GitHub conventions survey
+                                    ✓ GraphQL surveyed 5 most-active anthropics/* repos
+                                    ✓ found 2 distinct label patterns:
+                                       - claude-code: 86 labels (rich area:/platform:/api:/perf:)
+                                       - 4 plugin/skill repos: 10-13 labels (GH stock + claude-code-assisted)
+                                    ✓ wrote docs/research/anthropic-github-conventions.md
+                                    ✓ proposed 18-label set for knowledge-work-plugins-cli (Pattern 2 + plugin:*)
+                                    ✓ blocker noted: org Projects v2 needs read:project scope
+                                      (workaround: gh auth refresh -s read:project,project)
+                                    branch: feat/kb-parity-and-loop-plan (PR #4)
 ```
 
 ## Blockers
