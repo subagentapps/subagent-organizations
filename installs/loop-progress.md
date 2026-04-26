@@ -29,10 +29,18 @@ iteration appends to / updates this file.
 
 ## Iteration log
 
-(Entries added by the loop as it runs.)
-
 ```
-[iteration 1] 17:10 PST — task 1 starting...
+[iteration 0] 18:31 PST 2026-04-25 — /loop 5m scheduled (cron job 8090e0a1, every 5m)
+                                    — superseded by loop-prompt.md (24-iteration plan)
+                                    — original 12-task plan above is partially replaced
+
+[iteration 1] 18:46 PST 2026-04-25 — Phase A: vendor + survey
+                                    ✓ vendored anthropics/knowledge-work-plugins as 6th submodule
+                                    ✓ saved canonical /loop prompt to installs/loop-prompt.md
+                                    ✓ wrote docs/research/knowledge-work-plugins-cli-survey.md
+                                    branch: feat/kb-parity-and-loop-plan (PR #4)
+                                    commits: a5a4a23 (submodule + loop-prompt)
+                                             + survey commit pending
 ```
 
 ## Blockers
