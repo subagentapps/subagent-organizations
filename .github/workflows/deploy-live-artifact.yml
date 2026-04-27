@@ -1,0 +1,77 @@
+# Deploy live-artifact dashboard → Cloudflare Pages
+#
+# Spec: docs/spec/frontend/cloudflare-pages.md
+# Issue: #10 (wave-0: deploy live-artifact dashboard to subagentorganizations.com)
+#
+# Trigger: push to main (production), every PR (preview), manual dispatch.
+# Build: bun run build (in src/apps/live-artifact/)
+# Deploy: cloudflare/wrangler-action — uses wrangler.toml (project name + KV)
+#
+# Required GitHub repo secrets (HITL gate — user provisions before first run):
+#   CLOUDFLARE_API_TOKEN  → Cloudflare → My Profile → API Tokens → Edit Cloudflare Workers template, scoped to account
+#   CLOUDFLARE_ACCOUNT_ID → e6294e3ea89f8207af387d459824aaae (per docs/spec/frontend/cloudflare-pages.md)
+#
+# Future: migrate to Cloudflare Secret Store binding (account secret store id
+# 565244614fc34be7aa8488ce46112f60). Tracked separately.
+
+name: deploy-live-artifact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/apps/live-artifact/**'
+      - '.github/workflows/deploy-live-artifact.yml'
+  pull_request:
+    paths:
+      - 'src/apps/live-artifact/**'
+      - '.github/workflows/deploy-live-artifact.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write   # so wrangler-action can comment preview URL
+
+concurrency:
+  group: deploy-live-artifact-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/apps/live-artifact
+    steps:
+      # All third-party actions SHA-pinned per repo convention
+      # (see .github/workflows/release-please.yml for the rule).
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76  # v2.0.2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        env:
+          # snapshot-projects.ts gracefully no-ops if unset; verified locally
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run build
+
+      - name: Deploy to Cloudflare Pages
+        # cloudflare/wrangler-action@v3.15.0 (2026-04-15)
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: src/apps/live-artifact
+          # wrangler.toml supplies: name=subagent-organizations, pages_build_output_dir=./dist
+          command: pages deploy dist --project-name=subagent-organizations --branch=${{ github.head_ref || github.ref_name }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

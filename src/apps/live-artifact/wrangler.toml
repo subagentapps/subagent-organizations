@@ -27,11 +27,17 @@ compatibility_date = "2026-04-01"
 # (CLAUDE.md gate: secrets in non-`.env*` files).
 
 # KV cache binding for /api/projects (per docs/spec/frontend/live-data.md).
-# The user creates the namespace once via `wrangler kv namespace create
-# SUBAGENT_CACHE`; the resulting `id` goes here. Until then, the Pages
-# Function gracefully degrades: cache miss → GitHub fetch → no cache
-# write (the `env.SUBAGENT_CACHE` check in functions/api/projects.ts
-# guards the `.put()`).
-[[kv_namespaces]]
-binding = "SUBAGENT_CACHE"
-id = ""    # placeholder — set via `wrangler kv namespace create SUBAGENT_CACHE`
+#
+# COMMENTED OUT until the user creates the namespace via:
+#   wrangler kv namespace create SUBAGENT_CACHE
+#
+# Wrangler rejects an empty `id = ""` placeholder at config-parse time —
+# even with the graceful-degradation guard in functions/api/projects.ts,
+# wrangler won't deploy with the binding declared empty. Uncomment and
+# paste the resulting `id` from the wrangler command above. Until then,
+# the Pages Function code path that checks `env.SUBAGENT_CACHE` falls
+# through to no-cache (cache miss → GitHub fetch → no cache write).
+#
+# [[kv_namespaces]]
+# binding = "SUBAGENT_CACHE"
+# id = "<paste-id-from-wrangler-output>"

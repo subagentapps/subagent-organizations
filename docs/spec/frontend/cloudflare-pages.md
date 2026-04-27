@@ -61,24 +61,33 @@ ENVIRONMENT = "production"
 ENVIRONMENT = "preview"
 ```
 
-## Required `.github/workflows/deploy.yml`
+## Required `.github/workflows/deploy-live-artifact.yml`
 
-Lives at `src/apps/live-artifact/.github/workflows/deploy.yml`. Triggers on
-push to `main`, every PR, and manual dispatch. Deploys built `dist/` via
-`cloudflare/pages-action@v1` to the `subagent-organizations` Pages project.
+Lives at `.github/workflows/deploy-live-artifact.yml` (repo-root workflows
+dir, not nested under the app). Triggers on push to `main`, every PR
+touching `src/apps/live-artifact/**`, and manual dispatch. Deploys built
+`dist/` via **`cloudflare/wrangler-action@v3.15.0`** (April 2026, the
+actively-maintained successor to the deprecated `cloudflare/pages-action@v1`
+which last released in May 2023).
 
-Key required steps (full YAML in source `akw-cf-pages-setup.txt:55-143`):
+Required steps (see the actual file for SHA pins):
 
-1. `actions/checkout@v4`
-2. `actions/setup-node@v4` with `node-version: '20'`
-3. `bun install` (or `npm ci`)
+1. `actions/checkout@v4.2.2`
+2. `oven-sh/setup-bun@v2.0.2` (Bun, not Node — per CLAUDE.md #6)
+3. `bun install --frozen-lockfile`
 4. `bun run build`
-5. `cloudflare/pages-action@v1` with:
+5. `cloudflare/wrangler-action@v3.15.0` with:
    - `apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}`
    - `accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}`
-   - `projectName: subagent-organizations`
-   - `directory: dist`
+   - `workingDirectory: src/apps/live-artifact`
+   - `command: pages deploy dist --project-name=subagent-organizations --branch=${{ github.head_ref || github.ref_name }}`
    - `gitHubToken: ${{ secrets.GITHUB_TOKEN }}`
+
+> **wrangler.toml gotcha**: until the KV namespace exists, the
+> `[[kv_namespaces]]` block in `src/apps/live-artifact/wrangler.toml` MUST
+> stay commented out. Wrangler rejects an empty `id = ""` at config-parse
+> time, blocking the deploy entirely. Once `wrangler kv namespace create
+> SUBAGENT_CACHE` returns an ID, uncomment and paste.
 
 ## Required GitHub repo secrets
 
