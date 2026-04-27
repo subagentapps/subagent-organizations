@@ -57,7 +57,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
+  /* Token scale (tokens.css §spacing) is 1,2,3,4,6,8,12,16 — no --space-5.
+     --space-4 (16px) horizontal feels right alongside --space-4 vertical. */
+  padding: var(--space-4);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
