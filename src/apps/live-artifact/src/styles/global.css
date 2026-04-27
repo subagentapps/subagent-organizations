@@ -1001,7 +1001,15 @@ button {
    ============================================================ */
 
 @media (max-width: 768px) {
-  .topbar { padding: 0 var(--sp-3); gap: var(--sp-3); }
+  .topbar {
+    padding: 0 var(--sp-3);
+    gap: var(--sp-3);
+    /* Notch / Dynamic Island insets — needs viewport-fit=cover in <head>. */
+    padding-left: max(var(--sp-3), env(safe-area-inset-left));
+    padding-right: max(var(--sp-3), env(safe-area-inset-right));
+    padding-top: env(safe-area-inset-top);
+    height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  }
   .tb-meta { display: none; }
   .tb-tabs { gap: var(--sp-3); }
 
@@ -1020,10 +1028,78 @@ button {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
+    /* Indicate scrollability with a faint right-edge gradient. */
+    background:
+      linear-gradient(to right, var(--bg-0) 0%, transparent 4%),
+      linear-gradient(to left, var(--bg-0) 0%, transparent 4%);
   }
-  .col { flex: 0 0 100%; min-width: 100%; scroll-snap-align: start; }
+  .col { flex: 0 0 92%; min-width: 92%; scroll-snap-align: start; }
 
   .md { padding: var(--sp-5); }
   .cl-list { padding: var(--sp-5); }
   .cl-entry { grid-template-columns: 1fr; gap: var(--sp-2); }
+}
+
+/* ============================================================
+   iPhone band (<480px) — iPhone 16 Pro = 393px CSS px viewport.
+   Tightens further: shrink breadcrumb prefix, ensure tabs fit,
+   44pt touch targets per Apple HIG, dvh for stable layout under
+   the dynamic Chrome iOS URL bar.
+   ============================================================ */
+
+@media (max-width: 480px) {
+  /* Drop the "subagent /" prefix — keep the canonical repo name. */
+  .tb-crumb .dim,
+  .tb-crumb .sep { display: none; }
+  .tb-crumb { font-size: var(--fs-11); }
+
+  /* Tighter brand block; logo stays visible. */
+  .tb-brand { gap: var(--sp-2); }
+  .tb-avatar { width: 20px; height: 20px; }
+
+  /* Tabs: equal-share row using flex:1 so 4 tabs fit + tap targets. */
+  .tb-tabs {
+    flex: 1 1 auto;
+    justify-content: space-around;
+    gap: 0;
+    min-width: 0;
+  }
+  .tb-tab {
+    font-size: var(--fs-12);
+    padding: 0 var(--sp-2);
+    /* Apple HIG: 44pt minimum touch target. The visual line is the
+       underline; the tap area extends the full topbar height. */
+    min-height: 44px;
+  }
+
+  /* Topbar gap shrinks further; brand may wrap-suppress better. */
+  .topbar { gap: var(--sp-2); }
+
+  /* Use dvh anywhere 100vh shows up — iOS Chrome URL bar collapse
+     causes layout jumps with vh; dvh follows the actual viewport. */
+  .app, body, html { min-height: 100dvh; }
+
+  /* Markdown body padding shrinks for readability on narrow screens. */
+  .md { padding: var(--sp-4); font-size: var(--fs-14); }
+
+  /* Issue cards: stack chips so they don't truncate. */
+  .ic-meta { flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); }
+}
+
+/* ============================================================
+   Tap-target floor — applies regardless of breakpoint, but only
+   where coarse pointers exist (touch). Desktop mouse keeps the
+   tighter visual.
+   ============================================================ */
+
+@media (hover: none) and (pointer: coarse) {
+  .tb-tab,
+  .pill,
+  .chip,
+  button,
+  a.tb-gh {
+    min-height: 44px;
+  }
+  /* Buttons/pills get a touch-friendly min-width too. */
+  .pill, .chip { min-height: 32px; padding: 0 var(--sp-3); }
 }
