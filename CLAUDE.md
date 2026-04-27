@@ -69,10 +69,14 @@ The full posture and source hierarchy lives in
 │       └── live-artifact/         # the dashboard at subagentorganizations.com
 │           ├── src/
 │           │   ├── App.tsx        # wouter routes (Dashboard, plugin pages, ADR, Changelog)
+│           │   ├── main.tsx       # ReactDOM entry
+│           │   ├── router.tsx     # wouter base config
 │           │   ├── routes/        # per-route components
 │           │   ├── components/    # 9 reusable components (Field, KanbanGrid, IssueCard, …)
 │           │   ├── hooks/         # useProjects (live-data fetch)
 │           │   ├── lib/           # contentFetcher, projectsFetcher, pluginRegistry
+│           │   ├── styles/        # global tokens + CSS reset
+│           │   ├── types/         # shared types (Issue, Plugin)
 │           │   └── worker/        # fetch() handler (dispatches /api/* + serves assets)
 │           ├── functions/api/     # /api/projects, /api/github-file (reused from Pages-era)
 │           ├── public/            # static assets (favicon, snapshot)
@@ -90,8 +94,9 @@ The full posture and source hierarchy lives in
 │   │       └── product-management-cli-connectors.md
 │   └── research/                  # research feeding the specs
 ├── installs/
-│   ├── prompts/                   # ultra-orchestration, parry, superpowers install plans
-│   └── briefs/                    # date-stamped session briefs (audit logs, decisions)
+│   ├── briefs/                    # date-stamped session briefs (audit logs, decisions)
+│   ├── parry-install.md           # parry install plan
+│   └── superpowers-install.md     # superpowers install plan
 ├── vendor/anthropic/              # read-only upstream (gitignored where appropriate)
 ├── .claude/
 │   ├── CLAUDE.md                  # project-config CLAUDE.md (small; references this file)
@@ -117,7 +122,7 @@ The full posture and source hierarchy lives in
 | Worker name | `subagentorganizations` (no hyphen — matches brand domain) |
 | Latest release | [`v0.0.3`](https://github.com/subagentapps/subagent-organizations/releases/tag/v0.0.3) (2026-04-26) |
 | Open issues | 0 |
-| GitHub Project | [#2 "Polyrepo Wave 0 — subagentapps"](https://github.com/orgs/subagentapps/projects/2) |
+| GitHub Project | [#2 "Polyrepo Wave 0 — subagentapps"](https://github.com/orgs/subagentapps/projects/2) *(internal — requires org auth)* |
 
 ---
 
