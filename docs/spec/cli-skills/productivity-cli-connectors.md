@@ -118,7 +118,7 @@ Per `kwpc-cli-migration-strategy.md` §6:
 
 ## 7. Provenance
 
-- Upstream: `vendor/anthropic/knowledge-work-plugins/productivity/` (vendored 2026-04-26, MIT)
+- Upstream: `vendor/anthropic/knowledge-work-plugins/productivity/` (vendored 2026-04-26, Apache-2.0)
 - Implementation PR: [`subagentapps/knowledge-work-plugins-cli#7`](https://github.com/subagentapps/knowledge-work-plugins-cli/pull/7)
 - Pattern: `../plugin-migration-pattern.md`
 - Strategy parent: `kwpc-cli-migration-strategy.md`
