@@ -28,10 +28,12 @@ export default function App() {
     <PageShell>
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/plugins" component={Dashboard} />
+        {/* More-specific routes before less-specific ones inside Switch:
+            /plugins/:name precedes /plugins, /adr/:slug precedes /adr. */}
         <Route path="/plugins/:name" component={PluginPage} />
-        <Route path="/adr" component={AdrIndex} />
+        <Route path="/plugins" component={Dashboard} />
         <Route path="/adr/:slug" component={AdrPage} />
+        <Route path="/adr" component={AdrIndex} />
         <Route path="/changelog" component={Changelog} />
         <Route component={NotFound} />
       </Switch>
