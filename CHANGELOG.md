@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.3](https://github.com/subagentapps/subagent-organizations/compare/v0.0.2...v0.0.3) (2026-04-27)
+
+
+### Features
+
+* **deploy:** GitHub Actions workflow for Cloudflare Pages live-artifact deploy ([#113](https://github.com/subagentapps/subagent-organizations/issues/113)) ([7020c4c](https://github.com/subagentapps/subagent-organizations/commit/7020c4c9154c8c7781bc6bdee4b7a5d9d438fd9d))
+
+
+### Documentation
+
+* **briefs:** branch hygiene proposal — 51 safe-to-delete locals identified ([#114](https://github.com/subagentapps/subagent-organizations/issues/114)) ([16a5ec4](https://github.com/subagentapps/subagent-organizations/commit/16a5ec46fe634607ba748c685cc1a2d6547c4867))
+* **briefs:** kwpc strategy audit — sufficiency check vs upstream ([#107](https://github.com/subagentapps/subagent-organizations/issues/107)) ([cb232ec](https://github.com/subagentapps/subagent-organizations/commit/cb232ecf2cbdede01920d1bdc3d8af7b9bdd1f6c))
+* **briefs:** orchestrator goals brief for 2026-04-26 ([#106](https://github.com/subagentapps/subagent-organizations/issues/106)) ([d7e5d1c](https://github.com/subagentapps/subagent-organizations/commit/d7e5d1c6aec5f20e0744bff442cde1c951fba719))
+* **prompts:** add opus-orchestrator append-system-prompt ([#105](https://github.com/subagentapps/subagent-organizations/issues/105)) ([a52b582](https://github.com/subagentapps/subagent-organizations/commit/a52b58205c8a2245941e1360eca4709eb600768d))
+* **spec:** brand voice + internal brand for subagent-organizations.com ([#109](https://github.com/subagentapps/subagent-organizations/issues/109)) ([21ac1f4](https://github.com/subagentapps/subagent-organizations/commit/21ac1f4aa1da3f04cef2c18c69e4cd667a87ebde))
+* **spec:** connector availability matrix — every plugin × every category ([#112](https://github.com/subagentapps/subagent-organizations/issues/112)) ([31e93b9](https://github.com/subagentapps/subagent-organizations/commit/31e93b99c7f4f49e7ca1384999d7d68c927f6a50))
+* **spec:** engineering-cli connectors — Keep/Drop/Substitute decisions ([#110](https://github.com/subagentapps/subagent-organizations/issues/110)) ([a058527](https://github.com/subagentapps/subagent-organizations/commit/a0585270a0cced9230d0e20f101647ed74f5e581))
+* **spec:** plugin-migration pattern — much simpler than audit suggested ([#108](https://github.com/subagentapps/subagent-organizations/issues/108)) ([6b5d15f](https://github.com/subagentapps/subagent-organizations/commit/6b5d15fac8fab0e077445bbe657cf7e0ea5791d1))
+* **spec:** product-management-cli connectors — GitHub-native PM ([#111](https://github.com/subagentapps/subagent-organizations/issues/111)) ([18e8410](https://github.com/subagentapps/subagent-organizations/commit/18e8410b14a2b478fa337525529ca8a89772fc36))
+
 ## [0.0.2](https://github.com/subagentapps/subagent-organizations/compare/v0.0.1...v0.0.2) (2026-04-26)
 
 
