@@ -1033,7 +1033,9 @@ button {
       linear-gradient(to right, var(--bg-0) 0%, transparent 4%),
       linear-gradient(to left, var(--bg-0) 0%, transparent 4%);
   }
-  .col { flex: 0 0 92%; min-width: 92%; scroll-snap-align: start; }
+  /* Tablet portrait (481-768px): full-width snap; phones get the
+     92% peek-gradient affordance in the <480px band below. */
+  .col { flex: 0 0 100%; min-width: 100%; scroll-snap-align: start; }
 
   .md { padding: var(--sp-5); }
   .cl-list { padding: var(--sp-5); }
@@ -1084,6 +1086,11 @@ button {
 
   /* Issue cards: stack chips so they don't truncate. */
   .ic-meta { flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); }
+
+  /* Phone-only kanban peek: 92% width hints at horizontally-scrollable
+     siblings (gradient on the .kanban container is set in the 768px
+     block above). Tablet portrait keeps full-width snap. */
+  .col { flex: 0 0 92%; min-width: 92%; }
 }
 
 /* ============================================================
@@ -1092,14 +1099,23 @@ button {
    tighter visual.
    ============================================================ */
 
+/* Scoped to explicit interactive-target classes only — bare
+   `button` selectors would inflate compact icon buttons inside
+   topbars / chip strips on touch laptops (iPad with trackpad in
+   coarse mode, Windows touch). Use .btn / .icon-btn / explicit
+   classes for any new touch targets that need the floor. */
 @media (hover: none) and (pointer: coarse) {
   .tb-tab,
-  .pill,
-  .chip,
-  button,
-  a.tb-gh {
+  a.tb-gh,
+  .btn,
+  .icon-btn {
     min-height: 44px;
   }
-  /* Buttons/pills get a touch-friendly min-width too. */
-  .pill, .chip { min-height: 32px; padding: 0 var(--sp-3); }
+  /* Pills + chips get a moderate floor (still tappable, doesn't
+     break tight horizontal flows). */
+  .pill,
+  .chip {
+    min-height: 32px;
+    padding: 0 var(--sp-3);
+  }
 }
