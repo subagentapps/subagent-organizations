@@ -1,75 +1,40 @@
-import { Activity } from 'lucide-react';
-
 /**
  * App — live-artifact dashboard root.
  *
- * Spec: docs/spec/frontend/vite-scaffold.md (this file is the entry point)
- *      + docs/spec/frontend/live-data.md (data fetch via Cloudflare Pages Function)
- *      + docs/spec/frontend/design-brief.md (visual design)
+ * Spec:
+ *   docs/spec/frontend/vite-scaffold.md (this file is the entry point)
+ *   docs/spec/frontend/content-routes.md (route table — Dashboard, Plugins, ADR, Changelog)
+ *   docs/spec/frontend/live-data.md (data fetch — useProjects + /api/projects)
+ *   docs/spec/frontend/design-brief.md (visual design — kanban + plugin pages)
  *
- * The component-level architecture is deliberately minimal at scaffold
- * time: prove the build/dev pipeline works, then split into per-route
- * components in a follow-up PR per the design brief.
+ * Wires every route component the frontend PRs A-G shipped into wouter
+ * inside the PageShell. The previous version of this file rendered only
+ * the scaffold landing card and never integrated the Dashboard, plugin
+ * pages, ADR pages, or Changelog — visitors saw a placeholder regardless
+ * of the URL. PRs B-G's components were on disk but unreachable.
  */
+
+import { Route, Switch } from 'wouter';
+import { PageShell } from './components/PageShell/PageShell';
+import { Dashboard } from './routes/Dashboard';
+import { PluginPage } from './routes/PluginPage';
+import { AdrIndex } from './routes/AdrIndex';
+import { AdrPage } from './routes/AdrPage';
+import { Changelog } from './routes/Changelog';
+import { NotFound } from './routes/NotFound';
+
 export default function App() {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#0a0a0a',
-        color: '#e5e5e5',
-        fontFamily: 'ui-sans-serif, system-ui, -apple-system, sans-serif',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <main
-        style={{
-          textAlign: 'center',
-          padding: '2rem',
-          maxWidth: '640px',
-        }}
-      >
-        <Activity
-          size={48}
-          color="#5eead4"
-          style={{ marginBottom: '1.5rem' }}
-        />
-        <h1
-          style={{
-            fontSize: '2rem',
-            fontWeight: 600,
-            margin: '0 0 0.75rem',
-            color: '#fafafa',
-          }}
-        >
-          subagent-organizations
-        </h1>
-        <p
-          style={{
-            margin: '0 0 1.5rem',
-            color: '#888',
-            fontSize: '1rem',
-          }}
-        >
-          Live-artifact dashboard
-        </p>
-        <code
-          style={{
-            display: 'inline-block',
-            padding: '0.5rem 1rem',
-            background: '#0f0f10',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
-            borderRadius: '0.375rem',
-            color: '#888',
-            fontSize: '0.875rem',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          }}
-        >
-          scaffold v0.0.1 — see docs/spec/frontend/
-        </code>
-      </main>
-    </div>
+    <PageShell>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/plugins" component={Dashboard} />
+        <Route path="/plugins/:name" component={PluginPage} />
+        <Route path="/adr" component={AdrIndex} />
+        <Route path="/adr/:slug" component={AdrPage} />
+        <Route path="/changelog" component={Changelog} />
+        <Route component={NotFound} />
+      </Switch>
+    </PageShell>
   );
 }
