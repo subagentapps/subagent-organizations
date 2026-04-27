@@ -124,6 +124,25 @@ button {
   height: 100vh;
 }
 
+/* Centered content rail — every route renders inside <main>; this
+   gives Dashboard, PluginsIndex, AdrIndex, AdrPage, Changelog a
+   shared canvas (max 1280px) so visual rhythm doesn't drift between
+   routes. Below 768px the side padding tightens. */
+main {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-8);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  main {
+    padding: var(--sp-4) var(--sp-3);
+  }
+}
+
 /* ---------- Top bar ---------- */
 
 .topbar {

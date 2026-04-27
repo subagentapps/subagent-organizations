@@ -17,6 +17,7 @@
 import { Route, Switch } from 'wouter';
 import { PageShell } from './components/PageShell/PageShell';
 import { Dashboard } from './routes/Dashboard';
+import { PluginsIndex } from './routes/PluginsIndex';
 import { PluginPage } from './routes/PluginPage';
 import { AdrIndex } from './routes/AdrIndex';
 import { AdrPage } from './routes/AdrPage';
@@ -31,7 +32,7 @@ export default function App() {
         {/* More-specific routes before less-specific ones inside Switch:
             /plugins/:name precedes /plugins, /adr/:slug precedes /adr. */}
         <Route path="/plugins/:name" component={PluginPage} />
-        <Route path="/plugins" component={Dashboard} />
+        <Route path="/plugins" component={PluginsIndex} />
         <Route path="/adr/:slug" component={AdrPage} />
         <Route path="/adr" component={AdrIndex} />
         <Route path="/changelog" component={Changelog} />

@@ -13,24 +13,14 @@
  */
 
 import { useMemo } from 'react';
-import type { Issue, Plugin } from '../types/Issue';
-import { PLUGINS } from '../types/Issue';
+import type { Plugin } from '../types/Issue';
 import { useProjects } from '../hooks/useProjects';
 import { Field } from '../components/Field/Field';
 import { KanbanGrid } from '../components/KanbanGrid/KanbanGrid';
 import { PluginFilter } from '../components/PluginFilter/PluginFilter';
+import { countByPlugin, emptyPluginCounts } from '../lib/issueCounts';
 import sharedStyles from './shared.module.css';
 import dashStyles from './Dashboard.module.css';
-
-const ZERO_COUNTS: Readonly<Record<Plugin, number>> = Object.freeze(
-  Object.fromEntries(PLUGINS.map((p) => [p, 0])) as Record<Plugin, number>,
-);
-
-function countByPlugin(issues: Issue[]): Record<Plugin, number> {
-  const counts: Record<Plugin, number> = { ...ZERO_COUNTS };
-  for (const issue of issues) counts[issue.plugin] += 1;
-  return counts;
-}
 
 export function Dashboard() {
   const { issues, source, selectedSlug, setSelectedSlug } = useProjects();
@@ -45,7 +35,7 @@ export function Dashboard() {
   }, [selectedSlug]);
 
   const counts = useMemo(
-    () => (issues.length > 0 ? countByPlugin(issues) : ZERO_COUNTS),
+    () => (issues.length > 0 ? countByPlugin(issues) : emptyPluginCounts),
     [issues],
   );
 

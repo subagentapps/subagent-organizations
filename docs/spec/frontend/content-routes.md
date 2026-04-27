@@ -14,11 +14,28 @@ aesthetic + teal accent. Adds **only one** new dependency category
 | Path | Purpose |
 |---|---|
 | `/` | Dashboard (the live-artifact tracker — exists per [`./live-data.md`](./live-data.md)) |
+| `/plugins` | PluginsIndex — 8-tile catalog grid (label + summary + open-issue count, links to `/plugins/:name`). Distinct from Dashboard; previously aliased to it. |
 | `/plugins/:name` | Per-plugin landing page, templated from GitHub README + repo metadata |
 | `/adr` | ADR index (auto-generated from `docs/adr/*.md` files in target repos) |
 | `/adr/:number` | Individual ADR view |
 | `/changelog` | Combined changelog across all plugins |
 | `*` | NotFound page |
+
+### PluginsIndex contract (`/plugins`)
+
+Renders a grid (4-cols wide, 2-cols tablet, 1-col phone) of all 8 entries
+in `PLUGIN_REGISTRY`. Each tile:
+
+- Label (mono, primary): `<info.label>` from registry
+- Open-issue count badge: `countByPlugin(issues)[slug]` via `useProjects()`
+  + `lib/issueCounts.ts`
+- Summary (one-line prose, brand-voice §4): `<info.summary>` from registry
+- Owner/repo footer: `<info.ownerRepo>` + arrow icon
+- Entire tile is a `<Link href="/plugins/:slug">` — full-card click target
+
+Source-of-truth coupling: the tally helper `countByPlugin` is shared
+with Dashboard (`lib/issueCounts.ts`) so the two routes can't drift on
+"how do we count open issues per plugin".
 
 ## Required dependencies
 
