@@ -404,3 +404,57 @@ Warehouse mart data (Louvain community detection on a 191-node, 287-edge archite
 - #129 — `.github/CODEOWNERS` missing
 - #130 — `.github/dependabot.yml` missing
 - #131 — `LICENSE` missing
+
+## warehouse — survey 2026-04-27 05:06Z (routine v2)
+
+| Field | Value |
+|---|---|
+| Full name | `subagentapps/warehouse` |
+| Default branch | `main` |
+| Primary language | Python |
+| Stack | DuckDB ≥1.0.0 · psycopg[binary] ≥3.2.0 · pytest ≥8.0.0 |
+| License | ❌ none |
+| Branches | `main`, `chore/docs-claude-md` |
+| Open issues | 1 (pre-survey) |
+| Visibility | private |
+| Last pushed | 2026-04-25T12:31:46Z (v1 metadata) |
+| Survey method | v2 — direct MCP content reads (warehouse in session scope) |
+
+### Architecture summary
+
+Four-discipline enterprise data warehouse over two fixed inputs: 452 Anthropic Greenhouse job postings + a 191-node / 287-edge architecture knowledge graph from the `synthesis` package. Layers: `raw.*` (append-only, content-addressed) → `stg.*` (cleaned, typed) → `marts.*` (star schema: 9 dims, 5 facts, 3 bridges) → `semantic.*` (metric views). DB facade (`_platform/db.py`) abstracts DuckDB (local) vs Postgres (production) via `WAREHOUSE_DB_URL`. Forward-only migration runner records each DDL file by SHA-256. 32 tests, 0 failures.
+
+### Top-level tree
+
+```
+.github/workflows/ci.yml   CI — push/PR to main · Python 3.12 · build + pytest
+_platform/                 DB facade, migrations, freshness checks
+analytics/queries/         8 SQL analytics queries + runner
+data/                      Input JSON fixtures (jobs, graph) + built warehouse.duckdb
+docs/                      ARCHITECTURE.md
+ingestion/                 greenhouse_jobs.py, architecture_graph.py → raw.*
+scripts/build.py           End-to-end pipeline (~60s)
+seeds/                     dim_department.csv, dim_office.csv, dim_tool.csv
+sql/ddl/                   01_raw.sql → 02_staging.sql → 03_marts.sql → 04_semantic.sql
+tests/test_warehouse.py    32 tests (6 DE · 5 platform · 10 AE · 11 DA)
+transforms/                parser.py, raw_to_staging.py, staging_to_marts.py
+```
+
+### WAF presence checklist
+
+| Item | Status |
+|---|---|
+| `.github/CODEOWNERS` | ❌ missing — issue #133 |
+| `.github/dependabot.yml` | ❌ missing — issue #134 |
+| `.github/workflows/` | ✅ present (`ci.yml`, 1 068 bytes) |
+| `LICENSE` | ❌ missing — issue #135 |
+
+### Honest limitations (from README)
+
+1. **Task → Tool mapping is heuristic** — ~93% of responsibilities land in `task_kind = 'other'` with no tool match; LLM extraction via Sonnet 4.6 would cost ~$2 total.
+2. **SCD2 partially implemented** — diff-detect-and-expire logic only activates on multiple ingestion snapshots; single-snapshot runs are effectively SCD1.
+3. **No connectors yet** — architecture supports adding new sources as `ingestion/X.py` + `raw.X_raw` + `transforms/X_to_staging.py`.
+
+### Supersedes
+
+PR #36 (`routine/survey-warehouse-2026-04-26`) — closed 2026-04-26 as blocked (MCP scope: `warehouse` not in v1 session sources).
