@@ -124,6 +124,32 @@ button {
   height: 100vh;
 }
 
+/* Centered content rail — every route renders inside <main>; this
+   gives Dashboard, PluginsIndex, AdrIndex, AdrPage, Changelog a
+   shared canvas (max 1280px) so visual rhythm doesn't drift between
+   routes. Below 768px the side padding tightens.
+
+   Tokens here are the route-Modules' --space-* scale (declared in
+   tokens.css) — the global.css file's other rules use the design-
+   handoff's --sp-* scale (declared earlier in this file). Both scales
+   coexist intentionally: --space-* is the canonical Modules scale;
+   --sp-* is locked to the design-handoff classes (.topbar, .field,
+   etc.) so future handoff updates can swap that scale wholesale. */
+main {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-8);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  main {
+    padding: var(--space-4) var(--space-3);
+  }
+}
+
 /* ---------- Top bar ---------- */
 
 .topbar {
