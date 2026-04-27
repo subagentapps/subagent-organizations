@@ -1,0 +1,60 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  // Workers Static Assets — Cloudflare's recommended replacement for Pages.
+  // Per https://developers.cloudflare.com/workers/best-practices/workers-best-practices/:
+  //   "Workers Static Assets is the recommended way to deploy static sites,
+  //    single-page applications, and full-stack apps on Cloudflare. If you are
+  //    starting a new project, use Workers instead of Pages."
+
+  "name": "subagentorganizations",
+  "main": "./src/worker/index.ts",
+  "compatibility_date": "2026-04-26",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static-asset routing — index.html for any unmatched path so wouter can
+  // take over client-side routing. Worker fetch() handles /api/* explicitly.
+  // Per https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  // Custom Domains — wrangler auto-creates DNS records on deploy because
+  // the Workers Custom Domain flow owns DNS provisioning end-to-end. Per
+  // https://developers.cloudflare.com/workers/configuration/routing/custom-domains/:
+  //   "After you set up a Custom Domain for your Worker, Cloudflare will
+  //    create DNS records and issue necessary certificates on your behalf."
+  //
+  // The DNS record auto-creation is what unblocks issue #10 without the
+  // user touching the dashboard or pasting a Zone.DNS:Edit token.
+  "routes": [
+    {
+      "pattern": "subagentorganizations.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.subagentorganizations.com",
+      "custom_domain": true
+    }
+  ],
+
+  // KV namespace for the GitHub data cache. Commented out until provisioned
+  // via `wrangler kv namespace create SUBAGENT_CACHE`. The Worker code path
+  // checks `env.SUBAGENT_CACHE` and gracefully degrades to no-cache when
+  // the binding is absent (functions/api/projects.ts:313).
+  //
+  // "kv_namespaces": [
+  //   { "binding": "SUBAGENT_CACHE", "id": "<paste-from-wrangler-output>" }
+  // ],
+
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+
+  // Observability per workers-best-practices skill: enabled by default
+  "observability": {
+    "enabled": true
+  }
+}

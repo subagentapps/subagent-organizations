@@ -1,9 +1,0 @@
-# SPA fallback for Cloudflare Pages.
-# Spec: docs/spec/frontend/content-routes.md § Smoke-test
-# "Direct URL load (no SPA hop) works for every route — needs `_redirects`
-#  or wrangler `not_found_handling: 'single-page-application'`."
-#
-# Order matters: API routes first, then catch-all SPA fallback.
-
-/api/* /api/:splat 200
-/* /index.html 200
