@@ -65,13 +65,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run build
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy Worker (with Static Assets + Custom Domains)
         # cloudflare/wrangler-action@v3.15.0 (2026-04-15)
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd  # v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: src/apps/live-artifact
-          # wrangler.toml supplies: name=subagent-organizations, pages_build_output_dir=./dist
-          command: pages deploy dist --project-name=subagent-organizations --branch=${{ github.head_ref || github.ref_name }}
+          # wrangler.jsonc supplies: name=subagentorganizations, assets directory + binding,
+          # routes with custom_domain=true (auto-creates DNS — see
+          # https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)
+          command: deploy
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
