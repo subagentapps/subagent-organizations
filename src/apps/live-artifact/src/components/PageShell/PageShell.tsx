@@ -1,33 +1,36 @@
 /**
- * PageShell — top nav + main content area + skip-link.
+ * PageShell — top bar + main content area + skip-link.
  *
- * Spec: design-brief says "top nav (logo / Dashboard / Plugins / ADR /
- * Changelog), no sidebar, no footer."
+ * Implements the Claude Design handoff (staging/2026-04-26-live-artifact-
+ * design/.../shell.jsx): avatar (Braille-SO logo), breadcrumb crumb,
+ * 4 underline tabs, live status pill, GitHub link.
  *
- * Accessibility (PR F a11y pass):
- *   - <a href="#main"> skip-link visible on focus, keyboard users can
- *     jump past the nav to content
- *   - aria-current="page" on the active nav link (announced by screen
- *     readers; supplements the visual teal accent)
+ * Uses the global classes from styles/global.css verbatim (.topbar,
+ * .tb-brand, .tb-avatar, .tb-crumb, .tb-tabs, .tb-tab, .tb-meta,
+ * .tb-status, .tb-gh) — not CSS Modules — so future design tweaks land
+ * in one place.
+ *
+ * Accessibility:
+ *   - <a href="#main"> skip-link
+ *   - aria-current="page" on the active tab
  *   - <main id="main"> matches the skip-link target
- *   - aria-label on the nav for the landmark screen reader
+ *   - aria-label on the nav landmark
  */
 
 import { Link, useLocation } from 'wouter';
 import type { ReactNode } from 'react';
-import { Logo } from '../Logo/Logo';
-import styles from './PageShell.module.css';
+import { SoLogo } from '../Logo/SoLogo';
 
-const NAV_ITEMS: Array<{ href: string; label: string; matchPrefix?: string }> = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/plugins', label: 'Plugins', matchPrefix: '/plugins' },
-  { href: '/adr', label: 'ADR', matchPrefix: '/adr' },
-  { href: '/changelog', label: 'Changelog' },
+const TABS: Array<{ id: string; href: string; label: string; matchPrefix?: string }> = [
+  { id: 'dashboard', href: '/', label: 'Dashboard' },
+  { id: 'plugins', href: '/plugins', label: 'Plugins', matchPrefix: '/plugins' },
+  { id: 'adr', href: '/adr', label: 'ADR', matchPrefix: '/adr' },
+  { id: 'changelog', href: '/changelog', label: 'Changelog' },
 ];
 
-function isActive(currentPath: string, item: { href: string; matchPrefix?: string }) {
-  if (item.matchPrefix) return currentPath.startsWith(item.matchPrefix);
-  return currentPath === item.href;
+function isActive(currentPath: string, tab: typeof TABS[number]) {
+  if (tab.matchPrefix) return currentPath.startsWith(tab.matchPrefix);
+  return currentPath === tab.href;
 }
 
 export interface PageShellProps {
@@ -37,41 +40,56 @@ export interface PageShellProps {
 export function PageShell({ children }: PageShellProps) {
   const [location] = useLocation();
   return (
-    <>
-      <a href="#main" className={styles.skipLink}>
+    <div className="app">
+      <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <header className={styles.header}>
-        <nav className={styles.nav} aria-label="Primary">
-          <Link href="/" className={styles.logoLink}>
-            <Logo size={24} />
-            <span className={styles.brand}>subagent-organizations</span>
-          </Link>
-          <ul className={styles.navList}>
-            {NAV_ITEMS.map((item) => {
-              const active = isActive(location, item);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={
-                      active
-                        ? `${styles.navLink} ${styles.navLinkActive}`
-                        : styles.navLink
-                    }
-                    aria-current={active ? 'page' : undefined}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+      <header className="topbar">
+        <div className="tb-brand">
+          <span className="tb-avatar">
+            <SoLogo size={14} />
+          </span>
+          <span className="tb-crumb">
+            <span className="dim">subagent</span>
+            <span className="sep">/</span>subagent-organizations
+          </span>
+        </div>
+
+        <nav className="tb-tabs" aria-label="Primary">
+          {TABS.map((tab) => {
+            const active = isActive(location, tab);
+            return (
+              <Link
+                key={tab.id}
+                href={tab.href}
+                className={`tb-tab ${active ? 'is-active' : ''}`}
+                aria-current={active ? 'page' : undefined}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
         </nav>
+
+        <div className="tb-meta">
+          <span className="tb-status">
+            <span className="dot" />
+            on track
+          </span>
+          <a
+            className="tb-gh"
+            href="https://github.com/subagentapps/subagent-organizations"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            View on GitHub <span aria-hidden="true">↗</span>
+          </a>
+        </div>
       </header>
-      <main id="main" className={styles.main} tabIndex={-1}>
+
+      <main id="main" tabIndex={-1}>
         {children}
       </main>
-    </>
+    </div>
   );
 }
