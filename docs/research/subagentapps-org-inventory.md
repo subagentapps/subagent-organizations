@@ -287,3 +287,51 @@ for HTTP MCP servers, not for git-clone scope.
 in detail and proved the MCP scope hypothesis. We close them as superseded
 (not deleted) so the audit trail of "first try → diagnosis → second try"
 stays intact for future orchestrator runs hitting similar boundaries.
+
+## subagent-xml — survey 2026-04-27 05:00Z (routine v2)
+
+### Metadata
+
+| Field | Value |
+|---|---|
+| Full name | `subagentapps/subagent-xml` |
+| Description | "Scraper ingestion pipeline orchestrated by a Claude Agent SDK managed agent." |
+| Default branch | `main` |
+| Primary language | Python |
+| License | MIT (declared in `pyproject.toml`; no standalone `LICENSE` file at root) |
+| Has issues | yes |
+| Open issues | 0 |
+| Last pushed | 2026-04-25T07:02:28Z |
+| Size (KB) | ~21 (root files measured; pipeline/docker/sources/tests dirs not individually measured) |
+
+### Top-level tree
+
+| Name | Type |
+|---|---|
+| `.env.example` | file |
+| `.github/` | dir |
+| `.gitignore` | file |
+| `CHANGELOG.md` | file |
+| `README.md` | file |
+| `docker/` | dir |
+| `docs/` | dir |
+| `pipeline/` | dir |
+| `pyproject.toml` | file |
+| `sources/` | dir |
+| `sources.xml` | file |
+| `tests/` | dir |
+
+### README — first paragraph
+
+"Scraper ingestion pipeline orchestrated by a Claude Agent SDK managed agent. The agent drives a Scrapy crawler, ingests results through Redis streams into Postgres 18, exposes them via FastAPI + pg_graphql, and runs dbt transforms on top."
+
+### WAF presence checklist
+
+| Item | Present |
+|---|---|
+| `.github/CODEOWNERS` | ❌ missing |
+| `.github/dependabot.yml` | ❌ missing |
+| `.github/workflows/` | ✅ present (`pr.yml`) |
+| `LICENSE` | ❌ missing (MIT declared in `pyproject.toml` only) |
+
+**Summary:** A Scrapy + Redis + Postgres 18 + FastAPI + dbt scraper ingestion pipeline orchestrated by a Claude Agent SDK managed agent; also doubles as a curated index of the Anthropic/Claude/MCP ecosystem via `sources/` XML files.
