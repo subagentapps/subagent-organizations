@@ -335,3 +335,72 @@ stays intact for future orchestrator runs hitting similar boundaries.
 | `LICENSE` | ❌ missing (MIT declared in `pyproject.toml` only) |
 
 **Summary:** A Scrapy + Redis + Postgres 18 + FastAPI + dbt scraper ingestion pipeline orchestrated by a Claude Agent SDK managed agent; also doubles as a curated index of the Anthropic/Claude/MCP ecosystem via `sources/` XML files.
+
+## subagents-platform-execution — survey 2026-04-27 05:04Z (routine v2)
+
+| Field | Value |
+|---|---|
+| Full name | `subagentapps/subagents-platform-execution` |
+| Description | "Warehouse-driven enterprise platform execution layer. The Subagents API runtime is the substrate; the warehouse data picks what gets created on it." |
+| Default branch | `main` |
+| Primary language | Python |
+| License | ❌ none — issue #131 |
+| Visibility | private |
+| Disk usage (KB) | 40 |
+| Last pushed | 2026-04-25T12:30:16Z |
+| Open issues | 1 (pre-survey) |
+| Supersedes | PR #33 (v1 blocked 2026-04-26) |
+
+### Top-level tree
+
+```
+subagents-platform-execution/
+├── .github/
+│   └── workflows/
+│       └── ci.yml          ✅ CI present
+├── .gitignore
+├── README.md
+├── requirements.txt
+├── fixtures/               generated + committed (7 fixture files, 44 calls)
+├── runner/                 evidence.py · generate.py · replay.py
+├── src/                    FastAPI app (config, main, schemas, db/, api/)
+└── tests/                  test_platform_execution.py (15 tests)
+```
+
+### README summary (first paragraph)
+
+> Warehouse-driven enterprise platform execution layer. The Subagents API runtime is the substrate; the warehouse data picks what gets created on it. **The platform is the trace.** Every API call is justified by a specific warehouse query result. Every entity, every dispatch, every scheduled task traces to evidence.
+
+### Stack
+
+| Package | Pinned constraint |
+|---|---|
+| `fastapi` | ≥0.115.0 |
+| `uvicorn[standard]` | ≥0.32.0 |
+| `sqlalchemy[asyncio]` | ≥2.0.35 |
+| `aiosqlite` | ≥0.20.0 |
+| `pydantic` | ≥2.9.0 |
+| `pydantic-settings` | ≥2.5.0 |
+| `httpx` | ≥0.27.0 |
+| `pytest` | ≥8.0.0 |
+| `pytest-asyncio` | ≥0.23.0 |
+| `duckdb` | ≥1.0.0 |
+
+### Architecture summary
+
+Warehouse mart data (Louvain community detection on a 191-node, 287-edge architecture knowledge graph) drives 5 service domains. Each domain instantiation = 1 ManagedSubagent + 1 Chat + 1 charter Turn + 3 Dispatches + 1 ScheduledTask. Setup (3 calls) + 5×7 domain calls + verify (6 calls) = **44 calls total**. The runner layer can replay fixtures in-process (SQLite via ASGITransport) or against a live network target.
+
+### WAF presence checklist
+
+| Item | Status |
+|---|---|
+| `.github/CODEOWNERS` | ❌ missing — issue #129 |
+| `.github/dependabot.yml` | ❌ missing — issue #130 |
+| `.github/workflows/` | ✅ present (`ci.yml`, 1002 bytes) |
+| `LICENSE` | ❌ missing — issue #131 |
+
+### WAF gap issues opened
+
+- #129 — `.github/CODEOWNERS` missing
+- #130 — `.github/dependabot.yml` missing
+- #131 — `LICENSE` missing
