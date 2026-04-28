@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.0.4](https://github.com/subagentapps/subagent-organizations/compare/v0.0.3...v0.0.4) (2026-04-28)
+
+
+### Features
+
+* **frontend:** adopt Claude Design handoff — global CSS + TopBar + SoLogo ([#120](https://github.com/subagentapps/subagent-organizations/issues/120)) ([64fec87](https://github.com/subagentapps/subagent-organizations/commit/64fec877b032cec6e66bc9a2836dea79908697b2))
+
+
+### Bug Fixes
+
+* **deploy:** migrate Pages → Workers Static Assets, auto-DNS custom domains ([#117](https://github.com/subagentapps/subagent-organizations/issues/117)) ([b454176](https://github.com/subagentapps/subagent-organizations/commit/b4541769f8487bc9733f0d607e781626dcb8e0cc))
+* **frontend:** mobile-first responsive — iPhone 16 Pro priority ([#121](https://github.com/subagentapps/subagent-organizations/issues/121)) ([def4036](https://github.com/subagentapps/subagent-organizations/commit/def4036645b794c15312bdedc63e26b4dd7acc98))
+* **frontend:** wire SPA routes — Dashboard, plugin pages, ADR, Changelog ([#118](https://github.com/subagentapps/subagent-organizations/issues/118)) ([9d9695a](https://github.com/subagentapps/subagent-organizations/commit/9d9695a128d1bc8975c9edfad65332ecbdf908c7))
+* **live-artifact:** wire design tokens; differentiate /plugins from / ([#137](https://github.com/subagentapps/subagent-organizations/issues/137)) ([4e23804](https://github.com/subagentapps/subagent-organizations/commit/4e23804fd4c85172523fb2a58963e876bb5c53c8))
+
+
+### Documentation
+
+* author canonical repo-root CLAUDE.md ([#119](https://github.com/subagentapps/subagent-organizations/issues/119)) ([634f278](https://github.com/subagentapps/subagent-organizations/commit/634f2787b07b6bdf4a5249984ddc4852538aeb29))
+* **research:** survey subagent-xml v2 + log WAF gaps (routine) ([#125](https://github.com/subagentapps/subagent-organizations/issues/125)) ([700a3eb](https://github.com/subagentapps/subagent-organizations/commit/700a3ebc7211fcfbfae7abae05032d2903496cf1))
+* **research:** survey subagents-platform-execution v2 + WAF gaps [#129](https://github.com/subagentapps/subagent-organizations/issues/129) [#130](https://github.com/subagentapps/subagent-organizations/issues/130) [#131](https://github.com/subagentapps/subagent-organizations/issues/131) ([#132](https://github.com/subagentapps/subagent-organizations/issues/132)) ([91cb3e0](https://github.com/subagentapps/subagent-organizations/commit/91cb3e06bad34afe2e5748edcf83f9b5568f8c99))
+* **research:** survey warehouse v2 2026-04-27 05:06Z (routine v2) ([#136](https://github.com/subagentapps/subagent-organizations/issues/136)) ([e696367](https://github.com/subagentapps/subagent-organizations/commit/e6963675c875b05d6c8a8ea079b9da07858c5e30))
+* rewrite README applying brand voice (replaces pre-implementation framing) ([#116](https://github.com/subagentapps/subagent-organizations/issues/116)) ([31651cd](https://github.com/subagentapps/subagent-organizations/commit/31651cd86532e7e1c54e431e7a13ccac2c2fc96b))
+* **spec:** design-cli + data-cli connector spec contracts ([#141](https://github.com/subagentapps/subagent-organizations/issues/141)) ([4fb91cf](https://github.com/subagentapps/subagent-organizations/commit/4fb91cf97dd2fc1679de08f431c6c3967614a076))
+* **spec:** kwpc-cli architecture review — 12 incremental improvements identified ([#144](https://github.com/subagentapps/subagent-organizations/issues/144)) ([2f4364b](https://github.com/subagentapps/subagent-organizations/commit/2f4364bf084a7d867fd55bfe931d2305ff757f35))
+* **spec:** kwpc-cli migration complete — partner-built decisions + final summary ([#143](https://github.com/subagentapps/subagent-organizations/issues/143)) ([68e2d4b](https://github.com/subagentapps/subagent-organizations/commit/68e2d4b51a1d1b7ee4e21e50708984415693516c))
+* **spec:** kwpc-cli migration strategy — wave assignment + canonical template ([#138](https://github.com/subagentapps/subagent-organizations/issues/138)) ([d298fa3](https://github.com/subagentapps/subagent-organizations/commit/d298fa3358006eac6e67bcc2104eeb7faf3bfe48))
+* **spec:** pdf-viewer-cli connectors — trivial wrapper, no translation ([#140](https://github.com/subagentapps/subagent-organizations/issues/140)) ([4596473](https://github.com/subagentapps/subagent-organizations/commit/459647347699c533c9e53a284f0da84f12b930b5))
+* **spec:** productivity-cli connectors — spec contract for kwpc-cli[#7](https://github.com/subagentapps/subagent-organizations/issues/7) ([#139](https://github.com/subagentapps/subagent-organizations/issues/139)) ([0803c7a](https://github.com/subagentapps/subagent-organizations/commit/0803c7a8ad3209650e91541aae60f9b7f38f1b70))
+* **spec:** Wave-2 connector spec contracts summary ([#142](https://github.com/subagentapps/subagent-organizations/issues/142)) ([caac902](https://github.com/subagentapps/subagent-organizations/commit/caac9022cd67a0e48254dbcec3d5980902be6ca0))
+
 ## [0.0.3](https://github.com/subagentapps/subagent-organizations/compare/v0.0.2...v0.0.3) (2026-04-27)
 
 

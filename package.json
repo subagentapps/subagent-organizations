@@ -1,6 +1,6 @@
 {
   "name": "@subagentapps/subagent-organizations",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Typed manifest of zsh + Ghostty + Claude Code packages. TypeScript primitives with discriminated-union inheritance.",
   "type": "module",
   "main": "./dist/index.js",
