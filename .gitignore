@@ -7,7 +7,15 @@ dist/
 !.env.example
 coverage/
 .turbo/
-# vendor/ — gitignored per CLAUDE.md #5 ("Don't add submodules"). Used by
-# src/manifest/sync.ts as a clone-on-demand cache. Anything written here is
-# transient and should not be tracked.
+# vendor/ — gitignored per CLAUDE.md #5. Used by src/manifest/sync.ts as a
+# clone-on-demand cache. Transient clones should not be tracked.
+# Exception: submodule pointer files in vendor/anthropic/* ARE tracked via
+# .gitmodules and must not be ignored.
 vendor/
+!vendor/README.md
+!vendor/anthropic/
+!vendor/anthropic/anthropic-cli
+!vendor/anthropic/anthropic-sdk-typescript
+!vendor/anthropic/claude-agent-sdk-typescript
+!vendor/anthropic/mcp-ext-apps
+!vendor/anthropic/mcp-typescript-sdk
